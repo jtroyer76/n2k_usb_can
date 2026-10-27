@@ -12,7 +12,7 @@ USB-powered, isolated USB-to-CAN adapter built from off-the-shelf M5Stack parts,
 
 - CAN FD (the ESP32-S3 TWAI controller does not support it)
 - NMEA 2000 protocol logic on the device (address claim etc. is done by canboatjs on the host)
-- WiFi / YD RAW mode (possible v2)
+- WiFi / YD RAW mode, web config page, browser OTA upload (v2 — see §11)
 - Multiple CAN channels
 
 ## 2. Hardware
@@ -184,3 +184,16 @@ RX frames, TX frames, RX overflows, TX failures, bus errors, bus-off events, upt
 - https://pid.codes/howto/, https://github.com/openmoko/openmoko-usb-oui
 - https://www.freedesktop.org/software/systemd/man/latest/systemd.network.html
 - https://github.com/SignalK/signalk-server — `docker/docker-compose.yml`, `docker/Dockerfile_rel`, admin UI `BasicProvider.tsx`, `packages/streams/src/simple.ts`
+
+## 11. Scope as built (v1) and v2 plan
+
+**v1 (2026-10-27, builds, untested on hardware)** — kept deliberately simple:
+- gs_usb on interface 0 only (no CDC interface). Reflash via manual download mode (§6 fallback).
+- Advertised features: listen-only, loopback, one-shot, triple-sample, identify, bus-error reporting, get-state. Echo on TWAI TX completion (success or failure — the driver has no failure echo; failures surface as error frames). Automatic bus-off recovery in firmware.
+- Deferred from §4: hardware timestamps, MS OS descriptors (Windows), CDC console + 1200-baud reboot-to-bootloader.
+- Partition table already has two OTA slots, and the CAN layer (`can_bus.c`) produces transport-neutral frames, so v2 needs no repartitioning or CAN rework.
+
+**v2 (proposed):**
+- WiFi + YD RAW over TCP (Signal K "Yacht Devices" input, OpenCPN, etc.), able to run alongside USB.
+- Web page: WiFi credentials, mode (auto / USB only / WiFi only), firmware upload (OTA). Password-protected — the device can transmit onto the bus.
+- CDC interface with reboot-to-bootloader, if browser OTA doesn't make it redundant.
