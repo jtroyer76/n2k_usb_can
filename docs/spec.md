@@ -120,7 +120,7 @@ RX frames, TX frames, RX overflows, TX failures, bus errors, bus-off events, upt
 | Reuse 1209:2323 | None | Registered to bytewerk.org for candleLight hardware |
 | Own PID (pid.codes 0x1209 or openmoko 0x1d50) | udev `new_id` rule until upstreamed to `gs_usb.c` (CANnectivity did this) | Requires the public repo + LICENSE first |
 
-**Proposal:** develop with 1d50:606f; apply for a pid.codes PID once the repo is public and working; ship a udev rule (modelled on CANnectivity's `99-cannectivity.rules`) for kernels without the upstream entry.
+**Decided:** use 1d50:606f; apply for a pid.codes PID once the repo is public and working; ship a udev rule (modelled on CANnectivity's `99-cannectivity.rules`) for kernels without the upstream entry.
 
 ## 6. Flashing & updates
 
@@ -159,8 +159,8 @@ RX frames, TX frames, RX overflows, TX failures, bus errors, bus-off events, upt
 
 ## 9. Open decisions
 
-1. **License** — proposal: Apache-2.0 (matches CANnectivity/CherryUSB; permissive with patent grant). MIT also fine.
-2. **VID:PID** — §5 proposal OK?
+1. ~~License~~ — **decided: Apache-2.0** (2026-10-27).
+2. ~~VID:PID~~ — **decided: 1d50:606f for now**; own PID later per §5.
 3. **NMEA 2000 wiring** — CANH/CANL only, or land shield/NET-C on the base's GND pin?
 4. **Echo-on-failure semantics** — confirm against `gs_usb.c`.
 5. **BT_CONST values** — derive from TRM.

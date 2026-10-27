@@ -5,3 +5,7 @@ Open-source firmware that turns an **M5Stack AtomS3 Lite** (ESP32-S3) on an **M5
 Built for NMEA 2000 (250 kbit/s) with Signal K / canboatjs, but it is a general-purpose CAN adapter.
 
 **Status:** planning. See [docs/spec.md](docs/spec.md).
+
+## License
+
+[Apache License 2.0](LICENSE)
