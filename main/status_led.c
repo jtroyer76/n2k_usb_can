@@ -35,26 +35,26 @@ void status_led_update(led_state_t state, bool activity)
 
     switch (state) {
     case LED_NO_HOST:
-        set_rgb(40, 0, 0);
+        set_rgb(8, 0, 0);
         break;
     case LED_IDLE:
-        set_rgb(0, 0, 40);
+        set_rgb(0, 0, 10);
         break;
     case LED_BUS_OK:
         if (activity) {
-            set_rgb(0, 120, 0);
+            set_rgb(0, 60, 0);
         } else {
-            set_rgb(0, 40, 0);
+            set_rgb(0, 8, 0);
         }
         break;
     case LED_BUS_WARN:
-        set_rgb(activity ? 120 : 40, activity ? 60 : 20, 0);
+        set_rgb(activity ? 60 : 20, activity ? 30 : 10, 0);
         break;
     case LED_BUS_OFF:
-        set_rgb(phase ? 120 : 0, 0, 0);
+        set_rgb(phase ? 60 : 0, 0, 0);
         break;
     case LED_IDENTIFY:
-        set_rgb(phase ? 120 : 0, 0, phase ? 120 : 0);
+        set_rgb(phase ? 60 : 0, 0, phase ? 60 : 0);
         break;
     }
 }

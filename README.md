@@ -23,7 +23,7 @@ CAN pins: TX = GPIO5, RX = GPIO6. Both parts are rated 0–40 °C — indoor use
 - Error frames for warning / passive / bus-off / restart, RX overflow flag, `GET_STATE` error counters, optional bus-error reporting
 - Automatic bus-off recovery (the Linux gs_usb driver cannot restart a channel itself)
 - Listen-only, loopback, one-shot, triple-sample modes
-- Status LED: red = no USB host driver, blue = idle, green = bus OK (bright flash on traffic), orange = error warning/passive, red blinking = bus-off, magenta blinking = identify
+- Status LED: dim red = no USB host, blue = idle, green = bus OK (bright flash on traffic), orange = error warning/passive, red blinking = bus-off, magenta blinking = identify
 
 Not in v1: WiFi/YD RAW, web config, CAN FD, hardware timestamps, Windows driverless install.
 
