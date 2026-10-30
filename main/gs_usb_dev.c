@@ -254,6 +254,10 @@ void tud_vendor_tx_cb(uint8_t idx, uint32_t sent_bytes)
     xSemaphoreGive(s_in_done);
 }
 
+// At least one tick: pdMS_TO_TICKS(2) is 0 at a 100 Hz tick, which turns
+// these waits into a busy loop that starves the main task.
+#define SHORT_WAIT (pdMS_TO_TICKS(2) > 0 ? pdMS_TO_TICKS(2) : 1)
+
 static bool send_to_host(const gs_host_frame_t *f)
 {
     // FIFO-less vendor mode: one frame per bulk transfer, wait for the
@@ -267,7 +271,7 @@ static bool send_to_host(const gs_host_frame_t *f)
                 return true;
             }
         }
-        xSemaphoreTake(s_in_done, pdMS_TO_TICKS(2));
+        xSemaphoreTake(s_in_done, SHORT_WAIT);
     }
     ESP_LOGW(TAG, "IN endpoint stuck, frame dropped");
     return false;
@@ -282,7 +286,7 @@ static void usb_in_task(void *arg)
     for (;;) {
         // Echoes first: they gate the host's TX queue.
         if (xQueueReceive(echo_q, &f, 0) == pdTRUE ||
-            xQueueReceive(rx_q, &f, pdMS_TO_TICKS(2)) == pdTRUE) {
+            xQueueReceive(rx_q, &f, SHORT_WAIT) == pdTRUE) {
             if (can_bus_running()) {
                 send_to_host(&f);
             }
