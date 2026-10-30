@@ -1,4 +1,4 @@
-# atoms3-can-gateway — Spec
+# n2k_usb_can — Spec
 
 Status: draft, pre-implementation (2026-10-27). Research notes behind this spec are summarized in [§9 Sources](#9-sources). Items marked **UNVERIFIED** are inferences that must be checked before or during implementation.
 

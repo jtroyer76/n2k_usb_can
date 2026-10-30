@@ -66,7 +66,7 @@ static const uint8_t s_config_desc[] = {
 static char s_serial[13];
 static const char *s_strings[STRID_COUNT] = {
     [STRID_LANGID] = (const char[]){ 0x09, 0x04 },
-    [STRID_MANUFACTURER] = "atoms3-can-gateway",
+    [STRID_MANUFACTURER] = "n2k_usb_can",
     [STRID_PRODUCT] = "AtomS3 CAN gateway (gs_usb)",
     [STRID_SERIAL] = s_serial,
     [STRID_INTERFACE] = "gs_usb",

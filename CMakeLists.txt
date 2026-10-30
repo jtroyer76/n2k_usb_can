@@ -1,4 +1,4 @@
 cmake_minimum_required(VERSION 3.22)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(atoms3-can-gateway)
+project(n2k_usb_can)

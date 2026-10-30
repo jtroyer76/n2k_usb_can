@@ -1,4 +1,4 @@
-// atoms3-can-gateway: USB-to-CAN adapter (gs_usb / candleLight protocol)
+// n2k_usb_can: USB-to-CAN adapter (gs_usb / candleLight protocol)
 // for M5Stack AtomS3 Lite + ATOMIC CAN Base.
 
 #include "can_bus.h"
