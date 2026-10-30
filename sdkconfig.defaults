@@ -7,16 +7,18 @@ CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
 # Two OTA slots from day one so a later WiFi/web update path needs no USB reflash
 CONFIG_PARTITION_TABLE_TWO_OTA=y
 
-# TinyUSB: one vendor interface (gs_usb), no CDC. Vendor FIFOs disabled (size 0)
-# so each bulk transfer carries exactly one gs_host_frame, as the gs_usb driver expects.
+# TinyUSB: vendor interface (gs_usb) plus one CDC-ACM console. Vendor FIFOs
+# disabled (size 0) so each bulk transfer carries exactly one gs_host_frame,
+# as the gs_usb driver expects.
 CONFIG_TINYUSB_VENDOR_COUNT=1
 CONFIG_TINYUSB_VENDOR_RX_BUFSIZE=0
 CONFIG_TINYUSB_VENDOR_TX_BUFSIZE=0
 CONFIG_TINYUSB_VENDOR_EPSIZE=64
-CONFIG_TINYUSB_CDC_ENABLED=n
+CONFIG_TINYUSB_CDC_ENABLED=y
+CONFIG_TINYUSB_CDC_COUNT=1
 
-# The native USB PHY belongs to TinyUSB, so logs go to UART0 (not exposed on
-# the AtomS3 Lite). Keep the USB-Serial/JTAG console off.
+# The native USB PHY belongs to TinyUSB. Boot logs go to UART0 (not exposed
+# on the AtomS3 Lite); once USB is up, logs move to the CDC console.
 CONFIG_ESP_CONSOLE_UART_DEFAULT=y
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 

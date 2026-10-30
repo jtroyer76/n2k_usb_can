@@ -188,12 +188,11 @@ RX frames, TX frames, RX overflows, TX failures, bus errors, bus-off events, upt
 ## 11. Scope as built (v1) and v2 plan
 
 **v1 (2026-10-27, builds, untested on hardware)** — kept deliberately simple:
-- gs_usb on interface 0 only (no CDC interface). Reflash via manual download mode (§6 fallback).
+- gs_usb on interface 0; CDC-ACM console on interfaces 1-2 (added 2026-10-30): log output, `stats`/`reboot`/`bootloader` commands, 1200-baud touch → ROM bootloader. Reflash with `tools/flash.sh`, which also clears `RTC_CNTL_FORCE_DOWNLOAD_BOOT` (it survives resets) and lets esptool drive DTR/RTS (`--before default_reset`; with Linux's DTR left high the reset lands back in the bootloader).
 - Advertised features: listen-only, loopback, one-shot, triple-sample, identify, bus-error reporting, get-state. Echo on TWAI TX completion (success or failure — the driver has no failure echo; failures surface as error frames). Automatic bus-off recovery in firmware.
-- Deferred from §4: hardware timestamps, MS OS descriptors (Windows), CDC console + 1200-baud reboot-to-bootloader.
+- Deferred from §4: hardware timestamps, MS OS descriptors (Windows).
 - Partition table already has two OTA slots, and the CAN layer (`can_bus.c`) produces transport-neutral frames, so v2 needs no repartitioning or CAN rework.
 
 **v2 (proposed):**
 - WiFi + YD RAW over TCP (Signal K "Yacht Devices" input, OpenCPN, etc.), able to run alongside USB.
 - Web page: WiFi credentials, mode (auto / USB only / WiFi only), firmware upload (OTA). Password-protected — the device can transmit onto the bus.
-- CDC interface with reboot-to-bootloader, if browser OTA doesn't make it redundant.

@@ -23,6 +23,8 @@ CAN pins: TX = GPIO5, RX = GPIO6. Both parts are rated 0–40 °C — indoor use
 - Error frames for warning / passive / bus-off / restart, RX overflow flag, `GET_STATE` error counters, optional bus-error reporting
 - Automatic bus-off recovery (the Linux gs_usb driver cannot restart a channel itself)
 - Listen-only, loopback, one-shot, triple-sample modes
+- USB serial console beside `can0` (`/dev/ttyACM0` on Linux): log output and the commands `stats`, `reboot`, `bootloader`
+- Reflash over USB without the reset button: a 1200-baud touch on the console reboots into the ROM bootloader (`tools/flash.sh`)
 - Status LED: dim red = no USB host, blue = idle, green = bus OK (bright flash on traffic), orange = error warning/passive, red blinking = bus-off, magenta blinking = identify
 
 Not in v1: WiFi/YD RAW, web config, CAN FD, hardware timestamps, Windows driverless install.
@@ -45,11 +47,31 @@ esptool --chip esp32s3 merge-bin -o merged.bin @flash_args
 
 ## Flash
 
-The firmware owns the USB port, so the board has to be put into download mode by hand for each flash:
+**From Linux, no button** (the adapter must be running this firmware):
 
-1. Hold the reset button (~2 s) until the internal green LED lights, then release (M5Stack's documented procedure).
+```
+tools/flash.sh build/merged.bin
+```
+
+It opens the console at 1200 baud so the firmware reboots into the ROM bootloader, writes the image with esptool, then clears the force-download flag and resets back into the firmware. Debian's `esptool` package has no flasher stub: run it as `ESPTOOL_ARGS=--no-stub tools/flash.sh ...`. Needs access to the serial ports (`dialout` group or `sudo`).
+
+**First flash, or recovery** (factory firmware, or a build that doesn't come up):
+
+1. Hold the side (reset) button ~2 s until the internal green LED lights, then release (M5Stack's documented procedure).
 2. `idf.py -p <port> flash`, or flash `build/merged.bin` at offset `0x0` from Chrome with [esptool-js](https://espressif.github.io/esptool-js/).
-3. Press reset or replug to run the firmware.
+3. Tap the side button to run the firmware.
+
+## Console
+
+The second USB interface is a CDC-ACM serial port, `/dev/serial/by-id/usb-n2k_usb_can_*-if01` on Linux. It carries the firmware log once USB is up, and takes line commands:
+
+| Command | Does |
+|---|---|
+| `stats` | Uptime, last reset reason, CAN state and error counters, frame counters |
+| `reboot` | Restart the firmware |
+| `bootloader` | Reboot into the ROM bootloader (same as the 1200-baud touch) |
+
+Output is dropped while nothing has the port open, so the console never holds up CAN traffic.
 
 ## Raspberry Pi / Signal K
 

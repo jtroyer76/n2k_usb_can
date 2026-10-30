@@ -12,6 +12,7 @@
 #include "gs_usb_proto.h"
 #include "tinyusb.h"
 #include "tinyusb_default_config.h"
+#include "usb_console.h"
 
 static const char *TAG = "gs_usb";
 
@@ -30,12 +31,22 @@ static const char *TAG = "gs_usb";
 #define EP_IN           0x81
 #define EP_SIZE         64
 
+// CDC-ACM console on interfaces 1-2 (with an IAD). gs_usb only claims
+// interface 0, so cdc_acm takes these.
+#define ITF_NUM_CDC         1
+#define ITF_COUNT           3
+#define EP_CDC_NOTIF        0x83
+#define EP_CDC_OUT          0x04
+#define EP_CDC_IN           0x84
+#define EP_CDC_NOTIF_SIZE   8
+
 enum {
     STRID_LANGID = 0,
     STRID_MANUFACTURER,
     STRID_PRODUCT,
     STRID_SERIAL,
     STRID_INTERFACE,
+    STRID_CDC,
     STRID_COUNT,
 };
 
@@ -43,9 +54,10 @@ static const tusb_desc_device_t s_device_desc = {
     .bLength = sizeof(tusb_desc_device_t),
     .bDescriptorType = TUSB_DESC_DEVICE,
     .bcdUSB = 0x0200,
-    .bDeviceClass = 0x00,
-    .bDeviceSubClass = 0x00,
-    .bDeviceProtocol = 0x00,
+    // Miscellaneous / IAD: composite device with an interface association
+    .bDeviceClass = TUSB_CLASS_MISC,
+    .bDeviceSubClass = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol = MISC_PROTOCOL_IAD,
     .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
     .idVendor = USB_VID,
     .idProduct = USB_PID,
@@ -56,11 +68,12 @@ static const tusb_desc_device_t s_device_desc = {
     .bNumConfigurations = 1,
 };
 
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_VENDOR_DESC_LEN)
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_VENDOR_DESC_LEN + TUD_CDC_DESC_LEN)
 
 static const uint8_t s_config_desc[] = {
-    TUD_CONFIG_DESCRIPTOR(1, 1, 0, CONFIG_TOTAL_LEN, 0, 100),
+    TUD_CONFIG_DESCRIPTOR(1, ITF_COUNT, 0, CONFIG_TOTAL_LEN, 0, 100),
     TUD_VENDOR_DESCRIPTOR(ITF_NUM_GS_USB, STRID_INTERFACE, EP_OUT, EP_IN, EP_SIZE),
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, STRID_CDC, EP_CDC_NOTIF, EP_CDC_NOTIF_SIZE, EP_CDC_OUT, EP_CDC_IN, 64),
 };
 
 static char s_serial[13];
@@ -70,6 +83,7 @@ static const char *s_strings[STRID_COUNT] = {
     [STRID_PRODUCT] = "AtomS3 CAN gateway (gs_usb)",
     [STRID_SERIAL] = s_serial,
     [STRID_INTERFACE] = "gs_usb",
+    [STRID_CDC] = "console",
 };
 
 static SemaphoreHandle_t s_in_done;
@@ -325,6 +339,10 @@ esp_err_t gs_usb_dev_init(void)
     cfg.descriptor.full_speed_config = s_config_desc;
 
     esp_err_t err = tinyusb_driver_install(&cfg);
+    if (err != ESP_OK) {
+        return err;
+    }
+    err = usb_console_init();
     if (err != ESP_OK) {
         return err;
     }

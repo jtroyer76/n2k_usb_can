@@ -7,6 +7,7 @@
 #include "freertos/task.h"
 #include "gs_usb_dev.h"
 #include "status_led.h"
+#include "usb_console.h"
 
 static const char *TAG = "main";
 
@@ -47,6 +48,7 @@ void app_main(void)
         can_bus_get_stats(&stats);
         uint32_t count = stats.rx_frames + stats.tx_frames;
         status_led_update(current_led_state(), count != last_count);
+        usb_console_poll();
         last_count = count;
         vTaskDelay(pdMS_TO_TICKS(50));
     }
