@@ -4,7 +4,7 @@ Open-source firmware that turns an **M5Stack AtomS3 Lite** (ESP32-S3) on an **M5
 
 Built for NMEA 2000 (250 kbit/s) with Signal K / canboatjs, but it is a general-purpose classic-CAN adapter.
 
-**Status:** v1 passes desk tests on a Raspberry Pi (loopback, 2000-frame burst, error reporting); not yet tested on a live NMEA 2000 bus. See [docs/TESTING.md](docs/TESTING.md) and [docs/spec.md](docs/spec.md).
+**Status:** v1 passes desk tests on a Raspberry Pi (loopback, 2000-frame burst, error reporting) and is **deployed on a live NMEA 2000 bus** (2026-11-01) as the Signal K N2K input on the boat "Nootka", replacing an Actisense-format-over-serial gateway. See [docs/TESTING.md](docs/TESTING.md) and [docs/spec.md](docs/spec.md).
 
 ## Hardware
 
@@ -84,14 +84,15 @@ Name=can0
 
 [CAN]
 BitRate=250K
-RestartSec=100ms
 ```
 
 ```
 sudo systemctl enable --now systemd-networkd
 ```
 
-Check with `ip -details -statistics link show can0` and `candump can0`.
+> **Do not add `RestartSec=` to the `[CAN]` section.** It maps to the kernel's `restart-ms` (driver-side automatic bus-off restart), which this firmware does not support — the gs_usb driver rejects it with *"Device doesn't support restart from Bus Off"* (the firmware does its own bus-off recovery; see [docs/TESTING.md](docs/TESTING.md)). systemd-networkd treats that one rejected setting as a failed config and, after a few retries, **refuses to bring `can0` up at all** — so the interface stays `DOWN` with the bitrate set. Omitting the line is all that's needed; networkd's default `ActivationPolicy=up` brings the link up.
+
+Check with `ip -details -statistics link show can0` and `candump can0`. One-shot alternative to networkd: `sudo ip link set up can0 type can bitrate 250000`.
 
 Signal K: Server → Data Connections → NMEA 2000 → **Canbus (canboatjs)**, interface `can0`. If Signal K runs in Docker, the container needs `network_mode: host` — `can0` lives in the host network namespace.
 

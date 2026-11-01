@@ -140,9 +140,8 @@ RX frames, TX frames, RX overflows, TX failures, bus errors, bus-off events, upt
    Name=can0
    [CAN]
    BitRate=250K
-   RestartSec=100ms
    ```
-   `sudo systemctl enable --now systemd-networkd`. **UNVERIFIED:** coexistence with NetworkManager on current Pi OS — check `nmcli device`. One-shot alternative: `sudo ip link set up can0 type can bitrate 250000`.
+   `sudo systemctl enable --now systemd-networkd`. **Do NOT add `RestartSec=`** — it maps to `restart-ms`, which this firmware refuses ("Device doesn't support restart from Bus Off", see §8 / TESTING.md); networkd then marks the config failed and refuses to bring `can0` up, leaving it DOWN with the bitrate set (verified on the boat 2026-11-01). Default `ActivationPolicy=up` brings the link up on its own. **VERIFIED 2026-11-01:** coexists with NetworkManager on Pi OS — NM lists `can0` as `unmanaged`, so networkd owns it with no conflict. One-shot alternative: `sudo ip link set up can0 type can bitrate 250000`.
 2. Signal K: Server → Data Connections → NMEA 2000 → **Canbus (canboatjs)**, Interface `can0`. Optionally fix UniqueNumber.
 3. **Docker:** SocketCAN interfaces live in the host network namespace — the Signal K container needs **`network_mode: host`** (Signal K's own compose file uses host networking). `privileged` should not be required for CAN alone (**UNVERIFIED**, untested).
 4. Device must run in normal (not listen-only) mode — canboatjs transmits (address claim).
@@ -161,7 +160,7 @@ RX frames, TX frames, RX overflows, TX failures, bus errors, bus-off events, upt
 
 1. ~~License~~ — **decided: Apache-2.0** (2026-10-27).
 2. ~~VID:PID~~ — **decided: 1d50:606f for now**; own PID later per §5.
-3. **NMEA 2000 wiring** — CANH/CANL only, or land shield/NET-C on the base's GND pin?
+3. ~~**NMEA 2000 wiring**~~ — **CANH/CANL only works** (live bus 2026-11-01): error-active with 0 bus-errors, i.e. ACKing fine, shield/GND left unlanded. Revisit only if ground-loop noise appears.
 4. **Echo-on-failure semantics** — confirm against `gs_usb.c`.
 5. **BT_CONST values** — derive from TRM.
 6. **TWAI API** — new `esp_twai` vs legacy.

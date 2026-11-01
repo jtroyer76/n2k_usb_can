@@ -32,3 +32,19 @@ Not yet tested: bus-off and recovery (needs a real fault, e.g. CANH shorted to C
 Found on the way: after a flash the chip stayed in the bootloader. Two causes, both handled in `tools/flash.sh`: `RTC_CNTL_FORCE_DOWNLOAD_BOOT` survives resets and has to be cleared, and with `--before no_reset` esptool leaves DTR (the boot-mode override on USB-Serial/JTAG) as Linux set it, so the final reset either does nothing or lands back in the bootloader.
 
 Host notes: Debian's `esptool` package (4.7.0) ships without the flasher stub, so it needs `--no-stub`. One enumeration after a reset logged `device descriptor read/all, error -32` and succeeded on the kernel's retry; not seen again.
+
+## 2026-11-01 — live NMEA 2000 bus, boat "Nootka" (nootcore, Raspberry Pi)
+
+First deployment on a real N2K bus, as the Signal K input, replacing an Actisense-format-over-serial Atom gateway (only one N2K drop available, so this adapter took the Actisense's spot; the old gateway was removed from the bus and unplugged).
+
+| Test | Result |
+|---|---|
+| Enumeration | Pass. `lsusb` → `1d50:606f`; `can0` created DOWN with the expected bit-timing limits; CDC console at `/dev/serial/by-id/usb-n2k_usb_can_AtomS3_CAN_gateway__gs_usb__...-if01` → `ttyACM0`; `gs_usb` bound cleanly |
+| Link up on live bus | Pass. `sudo ip link set up can0 type can bitrate 250000` → `state ERROR-ACTIVE`, berr-counter 0, 0 bus-errors, 0 bus-off. Error-active (not error-passive) on the populated bus confirms our node is ACKing real traffic — wiring (CANH/CANL) good. LED green with flashes |
+| Traffic / decode | Pass. `candump` streamed classic 29-bit frames; every frame decoded to a known real source — SA 0 (Garmin GPS24xd: PGN 129025/129026/127250) and SA 115 (Raymarine E22158 SeaTalk→N2K bridge: 130306 wind, 129029 GNSS, 129540, 128275, 129033). **Zero phantom source addresses** in the sample. (VHF SA 1 and Fusion SA 12 simply weren't transmitting.) |
+| Signal K | Pass. Server native (out of Docker). Added NMEA 2000 → **Canbus (canboatjs)** on `can0` as connection `pi_can0`, normal mode; disabled the old Actisense input. ~46.6 deltas/s |
+| Boot persistence | Pass **after a fix** (see below). With a corrected `80-can.network`, `can0` comes up `ERROR-ACTIVE` at 250k on cold boot with no manual command; Signal K reconnects automatically |
+
+**Bug in our own host-setup docs, found here:** the `80-can.network` snippet in the README and spec §7 included `RestartSec=100ms`. That maps to `restart-ms`, which this firmware refuses ("Device doesn't support restart from Bus Off" — already noted in the desk test above). systemd-networkd logged the config as failed, retried, and then *"The interface entered the failed state frequently, refusing to reconfigure it automatically"* — so after a reboot `can0` had the bitrate set but stayed **DOWN**. Removing the `RestartSec=` line fixed it; networkd's default `ActivationPolicy=up` then brings the link up. README and spec §7 corrected.
+
+NetworkManager coexistence (was UNVERIFIED): `nmcli device status` shows `can0` as `unmanaged`, and systemd-networkd was `disabled/inactive` before this — enabling it only affects interfaces matching a `.network` file (`can0` only), so eth0/wlan0 stay with NetworkManager. No conflict.
