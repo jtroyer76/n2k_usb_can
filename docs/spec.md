@@ -25,7 +25,7 @@ USB-powered, isolated USB-to-CAN adapter built from off-the-shelf M5Stack parts,
 | CAN connector (HT3.96-4P) | CANH, CANL, NC, GND. The GND pin goes to a SHIELD net joined to the isolated bus ground only through 1 MΩ ∥ 1 nF/2 kV | Base schematic |
 
 Implications:
-- NMEA 2000 drop: CANH/CANL only is the expected wiring; evaluate whether to land NET-C or shield on the GND pin (**open**). No termination needed on a drop.
+- NMEA 2000 drop: wire CANH/CANL plus the drop's **NET-S− (power-ground) to the base's GND pin** — that pin is the high-Z shield net (1 MΩ ∥ 1 nF), so it's a soft reference, not a ground bond, and isolation holds (verified on the live bus 2026-11-01). No termination needed on a drop.
 - Device is powered from the host USB; nothing is drawn from NET-S.
 - Indoor (nav station) only — 0–40 °C rating.
 
@@ -160,7 +160,7 @@ RX frames, TX frames, RX overflows, TX failures, bus errors, bus-off events, upt
 
 1. ~~License~~ — **decided: Apache-2.0** (2026-10-27).
 2. ~~VID:PID~~ — **decided: 1d50:606f for now**; own PID later per §5.
-3. ~~**NMEA 2000 wiring**~~ — **CANH/CANL only works** (live bus 2026-11-01): error-active with 0 bus-errors, i.e. ACKing fine, shield/GND left unlanded. Revisit only if ground-loop noise appears.
+3. ~~**NMEA 2000 wiring**~~ — **resolved (live bus 2026-11-01):** wire **CANH, CANL, and the drop's NET-S− (power-ground) wire to the base's GND pin**; came up error-active with 0 bus-errors. That GND pin is the shield net (1 MΩ ∥ 1 nF to the isolated bus-side ground), so landing NET-S− there is a high-impedance soft reference on the bus side of the barrier, **not** a DC ground bond — isolation is preserved. Revisit only if ground-loop noise appears.
 4. **Echo-on-failure semantics** — confirm against `gs_usb.c`.
 5. **BT_CONST values** — derive from TRM.
 6. **TWAI API** — new `esp_twai` vs legacy.
