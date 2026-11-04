@@ -48,3 +48,29 @@ First deployment on a real N2K bus, as the Signal K input, replacing an Actisens
 **Bug in our own host-setup docs, found here:** the `80-can.network` snippet in the README and spec §7 included `RestartSec=100ms`. That maps to `restart-ms`, which this firmware refuses ("Device doesn't support restart from Bus Off" — already noted in the desk test above). systemd-networkd logged the config as failed, retried, and then *"The interface entered the failed state frequently, refusing to reconfigure it automatically"* — so after a reboot `can0` had the bitrate set but stayed **DOWN**. Removing the `RestartSec=` line fixed it; networkd's default `ActivationPolicy=up` then brings the link up. README and spec §7 corrected.
 
 NetworkManager coexistence (was UNVERIFIED): `nmcli device status` shows `can0` as `unmanaged`, and systemd-networkd was `disabled/inactive` before this — enabling it only affects interfaces matching a `.network` file (`can0` only), so eth0/wlan0 stay with NetworkManager. No conflict.
+
+## 2026-11-04 — USB wedge found + fixed; 16 h soak, boat "Nootka"
+
+**The wedge.** On 2026-11-01, during a full-fleet test (every N2K device powered on, plus Signal K bridging AIS out onto `can0`), the gateway went dark after ~37 min under that load. dmesg on the Pi: `gs_usb … can0: failed to xmit URB … -EPIPE` (the bulk OUT endpoint stalled), then `usb 1-1.4.2: USB disconnect` — and it never re-enumerated. The CAN side stayed alive the whole time (LED green, still reading the bus); only the USB peripheral died, so `can0` vanished on the host until a physical replug. Not a CAN fault (bus was error-free), not the Pi's USB (other USB devices on the same hub kept working) — a device-side TinyUSB/DWC2 stall under sustained bulk traffic.
+
+**Root cause.** The firmware routed all its logging (via `tinyusb_console_init`) into the CDC-ACM console endpoint — and nothing on the host ever opened that port. Under load, writes into an undrained USB endpoint congested the shared USB stack and stalled the vendor OUT endpoint.
+
+**Fix.**
+- **Removed the CDC console entirely** — single gs_usb interface, logs to UART0 (not exposed), never a USB endpoint. Cost: no on-USB console, no 1200-baud reflash; `tools/flash.sh` deleted. Diagnostics now come from the WiFi stats page.
+- **Added a USB self-heal watchdog** (`main.c`): if USB makes no progress for ~5 s while CAN is active, `esp_restart()` — a wedge becomes a few-second blip instead of hours dark. Backstop only; see result.
+- Added WiFi + HTTP stats/OTA + rollback at the same time, so future fixes push over the air.
+
+**Result — 16 h soak under full load (everything on except one Axiom):**
+
+| Check | Result |
+|---|---|
+| Continuous uptime | **60,127 s (16.7 h)**, one unbroken boot — no wedge, no reboot. The old firmware died at ~68 min. |
+| Watchdog | **Never fired** → this is prevention (CDC removal), not recovery. |
+| TX under load | `tx 1,392,924` frames, **`tx_failed 0`** — the AIS-bridge TX load that triggered the original wedge, handled flawlessly. |
+| RX / errors | `rx 10,029,005`, `rx_overflow 0`, `bus_off 0`, `bus_err` ~3.5/min (benign). |
+| WiFi | up the whole time (−49 dBm), stable IP. |
+| Signal K | `pi_can0` streaming unbroken; no reconnect needed. |
+
+Load note: the Signal K AIS→N2K bridge is a steady ~7 deltas/s (≈23 CAN frames/s TX) — not a flood; the gateway kept up easily. (The "network congestion detected" toast seen in the Signal K Data Browser during this is a **browser-side** admin-UI warning about its own WebSocket delta stream, unrelated to the bus or the gateway.)
+
+**Flashing gotcha (Windows).** Flashed from a PC via USB (button download → `idf.py -p COM<n> flash`). After the flash the chip kept re-entering the ROM bootloader (still `303a:1001`) because the RTC force-download flag survives resets and esptool's RTS reset on the USB-Serial/JTAG port is finicky on Windows. Fix: `esptool --chip esp32s3 -p COM<n> --before default-reset --after hard-reset write-mem 0x6000812C 0`, then **unplug/replug** (a full power cycle clears both the RTC flag and the DTR/RTS line state).

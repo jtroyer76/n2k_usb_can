@@ -12,7 +12,7 @@ USB-powered, isolated USB-to-CAN adapter built from off-the-shelf M5Stack parts,
 
 - CAN FD (the ESP32-S3 TWAI controller does not support it)
 - NMEA 2000 protocol logic on the device (address claim etc. is done by canboatjs on the host)
-- WiFi / YD RAW mode, web config page, browser OTA upload (v2 — see §11)
+- WiFi YD RAW over TCP, and an on-device web config page (basic WiFi STA + HTTP OTA upload were since added 2026-11-03 — see §11; YD RAW and the config page remain future)
 - Multiple CAN channels
 
 ## 2. Hardware
@@ -124,6 +124,8 @@ RX frames, TX frames, RX overflows, TX failures, bus errors, bus-off events, upt
 
 ## 6. Flashing & updates
 
+> **Superseded 2026-11-03 (kept as the original design record).** The CDC-console 1200-baud-touch reflash below was removed with the CDC console (§11). Current flow: **first flash** = hold-button ROM download mode → `idf.py -p <PORT> flash` (if it sticks in the bootloader, clear `0x6000812C` and power-cycle — see README / docs/TESTING.md 2026-11-04); **updates after that** = WiFi OTA via `POST /update`.
+
 - **First flash:** Chrome/Edge via ESP Web Tools (Web Serial) over the S3's USB-Serial/JTAG. Manifest `chipFamily: "ESP32-S3"`, one merged binary at **offset 0** (S3 bootloader is at 0x0). Build the merged image with `esptool --chip esp32s3 merge-bin -o merged.bin @flash_args`.
 - **Problem:** once our firmware runs, TinyUSB owns the USB PHY — the USB-Serial/JTAG auto-reset path is gone, and a gs_usb-only device has no serial port for Web Serial to see.
 - **Solution:** the CDC interface supports a **1200-baud touch** → firmware switches the PHY back to USB-Serial/JTAG, sets `RTC_CNTL_FORCE_DOWNLOAD_BOOT`, restarts into ROM download mode (enumerates as 303a:1001, which esptool-js handles natively). Model on arduino-esp32 `esp32-hal-tinyusb.c` (`usb_switch_to_cdc_jtag`, `usb_persist_restart`).
@@ -184,14 +186,18 @@ RX frames, TX frames, RX overflows, TX failures, bus errors, bus-off events, upt
 - https://www.freedesktop.org/software/systemd/man/latest/systemd.network.html
 - https://github.com/SignalK/signalk-server — `docker/docker-compose.yml`, `docker/Dockerfile_rel`, admin UI `BasicProvider.tsx`, `packages/streams/src/simple.ts`
 
-## 11. Scope as built (v1) and v2 plan
+## 11. Scope as built
 
-**v1 (2026-10-27, builds, untested on hardware)** — kept deliberately simple:
-- gs_usb on interface 0; CDC-ACM console on interfaces 1-2 (added 2026-10-30): log output, `stats`/`reboot`/`bootloader` commands, 1200-baud touch → ROM bootloader. Reflash with `tools/flash.sh`, which also clears `RTC_CNTL_FORCE_DOWNLOAD_BOOT` (it survives resets) and lets esptool drive DTR/RTS (`--before default_reset`; with Linux's DTR left high the reset lands back in the bootloader).
-- Advertised features: listen-only, loopback, one-shot, triple-sample, identify, bus-error reporting, get-state. Echo on TWAI TX completion (success or failure — the driver has no failure echo; failures surface as error frames). Automatic bus-off recovery in firmware.
-- Deferred from §4: hardware timestamps, MS OS descriptors (Windows).
-- Partition table already has two OTA slots, and the CAN layer (`can_bus.c`) produces transport-neutral frames, so v2 needs no repartitioning or CAN rework.
+**v1 (2026-10-27 → deployed on the live bus 2026-11-01)** — the gs_usb core:
+- gs_usb on a single USB interface. Advertised features: listen-only, loopback, one-shot, triple-sample, identify, bus-error reporting, get-state. Echo on TWAI TX completion (success or failure — the driver has no failure echo; failures surface as error frames). Automatic bus-off recovery in firmware.
+- Deferred: hardware timestamps, MS OS descriptors (Windows).
 
-**v2 (proposed):**
-- WiFi + YD RAW over TCP (Signal K "Yacht Devices" input, OpenCPN, etc.), able to run alongside USB.
-- Web page: WiFi credentials, mode (auto / USB only / WiFi only), firmware upload (OTA). Password-protected — the device can transmit onto the bus.
+**CDC console removed (2026-11-03).** v1 originally carried a CDC-ACM console (interfaces 1-2) for logs + `stats`/`reboot`/`bootloader` commands + a 1200-baud-touch reflash (`tools/flash.sh`). It was the **root cause of a USB wedge** under sustained load — firmware logging piled into a USB endpoint nothing was reading, and the stack stalled (see docs/TESTING.md 2026-11-04). Removed entirely: single gs_usb interface, logs go to UART0, never a USB endpoint. `tools/flash.sh` is gone; reflash is button-download (first time) then OTA. A **USB self-heal watchdog** was added as a backstop (`esp_restart` if USB stops making progress while CAN is active).
+
+**v2 — WiFi + OTA (built 2026-11-03):**
+- WiFi STA, joins the boat network on boot (creds in gitignored `main/secrets.h`). `net_wifi.c`.
+- `esp_http_server` (`net_ota.c`): `GET /` plain-text stats page, `POST /update` firmware OTA gated by the `X-OTA-Key` header.
+- Rollback (`ota_health.c`): custom dual-OTA partition table (`partitions.csv`) + `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`; a pushed image boots pending-verify and only marks itself valid after USB is passing data + CAN is healthy for 60 s, else the bootloader reverts to the previous image.
+- Validated: after the fix + WiFi/OTA, ran 16 h clean under full load on the bus (docs/TESTING.md 2026-11-04).
+
+**Still future:** WiFi YD RAW over TCP (Signal K "Yacht Devices" input / OpenCPN); an on-device web config page (WiFi credentials / mode); an mDNS responder (`n2k-can-gw.local`); a `/log` endpoint for log lines over the web.

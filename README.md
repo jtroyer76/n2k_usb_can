@@ -1,10 +1,10 @@
 # n2k_usb_can
 
-Open-source firmware that turns an **M5Stack AtomS3 Lite** (ESP32-S3) on an **M5Stack ATOMIC CAN Base** (isolated transceiver) into a **USB-to-CAN adapter** compatible with the Linux `gs_usb` driver (candleLight protocol). Plug it into a Raspberry Pi and it appears as `can0` — no serial bridge, no drivers.
+Open-source firmware that turns an **M5Stack AtomS3 Lite** (ESP32-S3) on an **M5Stack ATOMIC CAN Base** (isolated transceiver) into a **USB-to-CAN adapter** compatible with the Linux `gs_usb` driver (candleLight protocol). Plug it into a Raspberry Pi and it appears as `can0` — no serial bridge, no drivers. It also joins WiFi so it can be **updated over the air**.
 
 Built for NMEA 2000 (250 kbit/s) with Signal K / canboatjs, but it is a general-purpose classic-CAN adapter.
 
-**Status:** v1 passes desk tests on a Raspberry Pi (loopback, 2000-frame burst, error reporting) and is **deployed on a live NMEA 2000 bus** (2026-11-01) as the Signal K N2K input on the boat "Nootka", replacing an Actisense-format-over-serial gateway. See [docs/TESTING.md](docs/TESTING.md) and [docs/spec.md](docs/spec.md).
+**Status:** deployed on a live NMEA 2000 bus (since 2026-11-01) as the Signal K N2K input on the boat "Nootka", replacing an Actisense-format-over-serial gateway. A USB wedge under sustained load was found and fixed on 2026-11-03 (removed the CDC console, added a self-heal watchdog) and WiFi + OTA were added; it then ran **16 h clean under full load** with no wedge. See [docs/TESTING.md](docs/TESTING.md) and [docs/spec.md](docs/spec.md).
 
 ## Hardware
 
@@ -15,19 +15,20 @@ Built for NMEA 2000 (250 kbit/s) with Signal K / canboatjs, but it is a general-
 
 CAN pins: TX = GPIO5, RX = GPIO6. Both parts are rated 0–40 °C — indoor use.
 
-## What v1 does
+## What it does
 
-- Enumerates as a gs_usb device (VID:PID `1d50:606f`, candleLight's default) → Linux binds `gs_usb` automatically → `can0`
+- Enumerates as a **single-interface** gs_usb device (VID:PID `1d50:606f`, candleLight's default) → Linux binds `gs_usb` automatically → `can0`
 - Bit timing from the host (any classic CAN bitrate the controller supports)
 - TX echo when the controller finishes with the frame, not when it is queued
 - Error frames for warning / passive / bus-off / restart, RX overflow flag, `GET_STATE` error counters, optional bus-error reporting
 - Automatic bus-off recovery (the Linux gs_usb driver cannot restart a channel itself)
 - Listen-only, loopback, one-shot, triple-sample modes
-- USB serial console beside `can0` (`/dev/ttyACM0` on Linux): log output and the commands `stats`, `reboot`, `bootloader`
-- Reflash over USB without the reset button: a 1200-baud touch on the console reboots into the ROM bootloader (`tools/flash.sh`)
+- **WiFi STA** — joins the configured network on boot (credentials in gitignored `main/secrets.h`)
+- **HTTP stats + OTA** — `GET /` plain-text status page; `POST /update` firmware upload (gated by an `X-OTA-Key` header), with **bootloader rollback** if a pushed image doesn't prove healthy
+- **USB self-heal watchdog** — restarts the chip if USB stops making progress while CAN is active (a backstop; the underlying wedge was fixed by removing the CDC console)
 - Status LED: dim red = no USB host, blue = idle, green = bus OK (bright flash on traffic), orange = error warning/passive, red blinking = bus-off, magenta blinking = identify
 
-Not in v1: WiFi/YD RAW, web config, CAN FD, hardware timestamps, Windows driverless install.
+Not implemented: WiFi YD RAW over TCP, CAN FD, hardware timestamps, mDNS, Windows driverless install.
 
 ## Build
 
@@ -38,40 +39,42 @@ idf.py set-target esp32s3
 idf.py build
 ```
 
-Merged image for single-file flashing at offset `0x0`:
+WiFi needs credentials: copy `main/secrets.example.h` to `main/secrets.h` (gitignored) and fill in `WIFI_SSID`, `WIFI_PASS`, and an `OTA_KEY`.
+
+## Flash & update
+
+**First flash (USB, one time):**
+
+1. Hold the AtomS3 side button ~2 s until the internal green LED lights, then release — this enters ROM download mode (enumerates as `303a:1001`).
+2. `idf.py -p <PORT> flash`.
+3. If it keeps re-entering the bootloader after flashing (still `303a:1001`), the RTC force-download flag is stuck — clear it and power-cycle:
+   ```
+   esptool --chip esp32s3 -p <PORT> --before default-reset --after hard-reset write-mem 0x6000812C 0
+   ```
+   then unplug/replug.
+
+**Every update after that: OTA over WiFi, no cable.** Find the gateway's IP (its DHCP hostname is `n2k-can-gw`; there is no mDNS responder, so `n2k-can-gw.local` does not resolve — use the router's lease list or an ARP scan), then:
 
 ```
-cd build
-esptool --chip esp32s3 merge-bin -o merged.bin @flash_args
+curl -H "X-OTA-Key: <your key>" --data-binary @build/n2k_usb_can.bin http://<gateway-ip>/update
 ```
 
-## Flash
+The device reboots into the new image as *pending-verify* and only keeps it if it proves healthy (USB passing data + CAN up) within a minute — otherwise the bootloader rolls back to the previous image.
 
-**From Linux, no button** (the adapter must be running this firmware):
+## Status page
+
+`GET /` returns plain text, reachable over WiFi even if USB has wedged:
 
 ```
-tools/flash.sh build/merged.bin
+n2k_usb_can gateway
+fw <git> built <date>
+partition ota_0  pending-verify no
+uptime <s>
+wifi up  rssi <dBm>  ip <ip>
+usb mounted yes
+can up  state <n>  tx_err <n>  rx_err <n>
+rx <n>  tx <n>  tx_failed <n>  rx_overflow <n>  bus_err <n>  bus_off <n>
 ```
-
-It opens the console at 1200 baud so the firmware reboots into the ROM bootloader, writes the image with esptool, then clears the force-download flag and resets back into the firmware. Debian's `esptool` package has no flasher stub: run it as `ESPTOOL_ARGS=--no-stub tools/flash.sh ...`. Needs access to the serial ports (`dialout` group or `sudo`).
-
-**First flash, or recovery** (factory firmware, or a build that doesn't come up):
-
-1. Hold the side (reset) button ~2 s until the internal green LED lights, then release (M5Stack's documented procedure).
-2. `idf.py -p <port> flash`, or flash `build/merged.bin` at offset `0x0` from Chrome with [esptool-js](https://espressif.github.io/esptool-js/).
-3. Tap the side button to run the firmware.
-
-## Console
-
-The second USB interface is a CDC-ACM serial port, `/dev/serial/by-id/usb-n2k_usb_can_*-if01` on Linux. It carries the firmware log once USB is up, and takes line commands:
-
-| Command | Does |
-|---|---|
-| `stats` | Uptime, last reset reason, CAN state and error counters, frame counters |
-| `reboot` | Restart the firmware |
-| `bootloader` | Reboot into the ROM bootloader (same as the 1200-baud touch) |
-
-Output is dropped while nothing has the port open, so the console never holds up CAN traffic.
 
 ## Raspberry Pi / Signal K
 
@@ -94,7 +97,7 @@ sudo systemctl enable --now systemd-networkd
 
 Check with `ip -details -statistics link show can0` and `candump can0`. One-shot alternative to networkd: `sudo ip link set up can0 type can bitrate 250000`.
 
-Signal K: Server → Data Connections → NMEA 2000 → **Canbus (canboatjs)**, interface `can0`. If Signal K runs in Docker, the container needs `network_mode: host` — `can0` lives in the host network namespace.
+Signal K: Server → Data Connections → NMEA 2000 → **Canbus (canboatjs)**, interface `can0`. If Signal K runs in Docker, the container needs `network_mode: host` — `can0` lives in the host network namespace. Note: Signal K does not robustly auto-reconnect if `can0` disappears and returns (e.g. after a device restart) — restart Signal K to re-attach.
 
 ## License
 
