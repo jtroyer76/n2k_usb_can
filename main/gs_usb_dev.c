@@ -12,7 +12,6 @@
 #include "gs_usb_proto.h"
 #include "tinyusb.h"
 #include "tinyusb_default_config.h"
-#include "usb_console.h"
 
 static const char *TAG = "gs_usb";
 
@@ -31,14 +30,10 @@ static const char *TAG = "gs_usb";
 #define EP_IN           0x81
 #define EP_SIZE         64
 
-// CDC-ACM console on interfaces 1-2 (with an IAD). gs_usb only claims
-// interface 0, so cdc_acm takes these.
-#define ITF_NUM_CDC         1
-#define ITF_COUNT           3
-#define EP_CDC_NOTIF        0x83
-#define EP_CDC_OUT          0x04
-#define EP_CDC_IN           0x84
-#define EP_CDC_NOTIF_SIZE   8
+// Single interface: gs_usb vendor only. The CDC-ACM console was removed to
+// shrink the USB surface (one bulk-heavy endpoint pair on the shared DWC2
+// stack) after a field USB wedge; diagnostics move to WiFi (v2).
+#define ITF_COUNT       1
 
 enum {
     STRID_LANGID = 0,
@@ -46,7 +41,6 @@ enum {
     STRID_PRODUCT,
     STRID_SERIAL,
     STRID_INTERFACE,
-    STRID_CDC,
     STRID_COUNT,
 };
 
@@ -54,10 +48,10 @@ static const tusb_desc_device_t s_device_desc = {
     .bLength = sizeof(tusb_desc_device_t),
     .bDescriptorType = TUSB_DESC_DEVICE,
     .bcdUSB = 0x0200,
-    // Miscellaneous / IAD: composite device with an interface association
-    .bDeviceClass = TUSB_CLASS_MISC,
-    .bDeviceSubClass = MISC_SUBCLASS_COMMON,
-    .bDeviceProtocol = MISC_PROTOCOL_IAD,
+    // Single vendor interface: class is defined at the interface level.
+    .bDeviceClass = 0x00,
+    .bDeviceSubClass = 0x00,
+    .bDeviceProtocol = 0x00,
     .bMaxPacketSize0 = CFG_TUD_ENDPOINT0_SIZE,
     .idVendor = USB_VID,
     .idProduct = USB_PID,
@@ -68,12 +62,11 @@ static const tusb_desc_device_t s_device_desc = {
     .bNumConfigurations = 1,
 };
 
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_VENDOR_DESC_LEN + TUD_CDC_DESC_LEN)
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_VENDOR_DESC_LEN)
 
 static const uint8_t s_config_desc[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_COUNT, 0, CONFIG_TOTAL_LEN, 0, 100),
     TUD_VENDOR_DESCRIPTOR(ITF_NUM_GS_USB, STRID_INTERFACE, EP_OUT, EP_IN, EP_SIZE),
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, STRID_CDC, EP_CDC_NOTIF, EP_CDC_NOTIF_SIZE, EP_CDC_OUT, EP_CDC_IN, 64),
 };
 
 static char s_serial[13];
@@ -83,7 +76,6 @@ static const char *s_strings[STRID_COUNT] = {
     [STRID_PRODUCT] = "AtomS3 CAN gateway (gs_usb)",
     [STRID_SERIAL] = s_serial,
     [STRID_INTERFACE] = "gs_usb",
-    [STRID_CDC] = "console",
 };
 
 static SemaphoreHandle_t s_in_done;
@@ -91,6 +83,16 @@ static uint8_t s_ctrl_buf[64];
 static can_timing_t s_timing;
 static bool s_timing_set;
 static volatile bool s_identify;
+
+// Timestamp (us) of the last completed USB transfer in either direction. The
+// self-heal watchdog in app_main restarts the chip if this goes stale while
+// CAN traffic is still flowing (see gs_usb_dev_last_progress_us).
+static volatile int64_t s_last_usb_progress;
+
+static inline void mark_usb_progress(void)
+{
+    s_last_usb_progress = esp_timer_get_time();
+}
 
 // ---------------------------------------------------------------------------
 // Control requests
@@ -139,6 +141,9 @@ static bool handle_out_data(const tusb_control_request_t *req)
             .triple_sample = m.flags & GS_CAN_MODE_TRIPLE_SAMPLE,
             .berr_reporting = m.flags & GS_CAN_MODE_BERR_REPORTING,
         };
+        // Arm the watchdog from a fresh timestamp: the host just opened the
+        // channel, so USB traffic should resume within milliseconds.
+        mark_usb_progress();
         return can_bus_start(&s_timing, &mode) == ESP_OK;
     }
 
@@ -252,6 +257,7 @@ void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint16_t bufsize)
 void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint32_t bufsize)
 #endif
 {
+    mark_usb_progress();
     if (!buffer || bufsize < offsetof(gs_host_frame_t, data)) {
         return;
     }
@@ -265,6 +271,7 @@ void tud_vendor_rx_cb(uint8_t idx, const uint8_t *buffer, uint32_t bufsize)
 
 void tud_vendor_tx_cb(uint8_t idx, uint32_t sent_bytes)
 {
+    mark_usb_progress();
     xSemaphoreGive(s_in_done);
 }
 
@@ -331,6 +338,7 @@ esp_err_t gs_usb_dev_init(void)
     if (!s_in_done) {
         return ESP_ERR_NO_MEM;
     }
+    mark_usb_progress();
 
     tinyusb_config_t cfg = TINYUSB_DEFAULT_CONFIG(usb_event_cb);
     cfg.descriptor.device = &s_device_desc;
@@ -339,10 +347,6 @@ esp_err_t gs_usb_dev_init(void)
     cfg.descriptor.full_speed_config = s_config_desc;
 
     esp_err_t err = tinyusb_driver_install(&cfg);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = usb_console_init();
     if (err != ESP_OK) {
         return err;
     }
@@ -362,4 +366,9 @@ bool gs_usb_dev_mounted(void)
 bool gs_usb_dev_identify(void)
 {
     return s_identify;
+}
+
+int64_t gs_usb_dev_last_progress_us(void)
+{
+    return s_last_usb_progress;
 }

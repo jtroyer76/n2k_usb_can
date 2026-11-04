@@ -4,7 +4,20 @@ idf_component_register(
         "can_bus.c"
         "gs_usb_dev.c"
         "status_led.c"
-        "usb_console.c"
+        "net_wifi.c"
+        "net_ota.c"
+        "ota_health.c"
     INCLUDE_DIRS "."
-    REQUIRES esp_driver_twai esp_driver_gpio esp_timer soc
+    REQUIRES
+        esp_driver_twai
+        esp_driver_gpio
+        esp_timer
+        soc
+        esp_wifi
+        esp_netif
+        esp_event
+        esp_http_server
+        app_update
+        esp_app_format
+        nvs_flash
 )

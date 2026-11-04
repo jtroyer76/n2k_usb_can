@@ -5,3 +5,4 @@ sdkconfig
 sdkconfig.old
 .vscode/
 build*.log
+main/secrets.h
