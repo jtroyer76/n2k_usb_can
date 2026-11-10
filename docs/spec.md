@@ -12,7 +12,7 @@ USB-powered, isolated USB-to-CAN adapter built from off-the-shelf M5Stack parts,
 
 - CAN FD (the ESP32-S3 TWAI controller does not support it)
 - NMEA 2000 protocol logic on the device (address claim etc. is done by canboatjs on the host)
-- WiFi YD RAW over TCP, and an on-device web config page (basic WiFi STA + HTTP OTA upload were since added 2026-11-03 — see §11; YD RAW and the config page remain future)
+- WiFi YD RAW over TCP, and an on-device web config page (basic WiFi STA + HTTP OTA upload were since added 2026-11-03 — see §11; the rest is in [ROADMAP.md](ROADMAP.md))
 - Multiple CAN channels
 
 ## 2. Hardware
@@ -200,4 +200,4 @@ RX frames, TX frames, RX overflows, TX failures, bus errors, bus-off events, upt
 - Rollback (`ota_health.c`): custom dual-OTA partition table (`partitions.csv`) + `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`; a pushed image boots pending-verify and only marks itself valid after USB is passing data + CAN is healthy for 60 s, else the bootloader reverts to the previous image.
 - Validated: after the fix + WiFi/OTA, ran 16 h clean under full load on the bus (docs/TESTING.md 2026-11-04).
 
-**Still future:** WiFi YD RAW over TCP (Signal K "Yacht Devices" input / OpenCPN); an on-device web config page (WiFi credentials / mode); an mDNS responder (`n2k-can-gw.local`); a `/log` endpoint for log lines over the web.
+**Still future:** see [ROADMAP.md](ROADMAP.md).

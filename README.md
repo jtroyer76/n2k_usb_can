@@ -4,7 +4,7 @@ Open-source firmware that turns an **M5Stack AtomS3 Lite** (ESP32-S3) on an **M5
 
 Built for NMEA 2000 (250 kbit/s) with Signal K / canboatjs, but it is a general-purpose classic-CAN adapter.
 
-**Status:** deployed on a live NMEA 2000 bus (since 2026-11-01) as the Signal K N2K input on the boat "Nootka", replacing an Actisense-format-over-serial gateway. A USB wedge under sustained load was found and fixed on 2026-11-03 (removed the CDC console, added a self-heal watchdog) and WiFi + OTA were added; it then ran **16 h clean under full load** with no wedge. See [docs/TESTING.md](docs/TESTING.md) and [docs/spec.md](docs/spec.md).
+**Status:** deployed on a live NMEA 2000 bus (since 2026-11-01) as a Signal K N2K input on a boat, replacing an Actisense-format-over-serial gateway. A USB wedge under sustained load was found and fixed on 2026-11-03 (removed the CDC console, added a self-heal watchdog) and WiFi + OTA were added; it then ran **16 h clean under full load** with no wedge. See [docs/TESTING.md](docs/TESTING.md), [docs/spec.md](docs/spec.md), and what's planned in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Hardware
 
