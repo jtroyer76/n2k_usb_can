@@ -24,7 +24,7 @@ CAN pins: TX = GPIO5, RX = GPIO6. Both parts are rated 0–40 °C — indoor use
 - Automatic bus-off recovery (the Linux gs_usb driver cannot restart a channel itself)
 - Listen-only, loopback, one-shot, triple-sample modes
 - **WiFi setup on the device** — with no network saved it starts an open hotspot (`N2K-CAN-XXXX`) with a setup page; settings live in NVS, nothing is compiled in. If the saved network is missing for 5 minutes the hotspot comes back, protected by the device password
-- **HTTP stats + OTA** — `GET /` plain-text status page, `/setup` settings; `POST /update` firmware upload (gated by the device password in an `X-OTA-Key` header), with **bootloader rollback** if a pushed image doesn't prove healthy
+- **Web interface** — status tiles, a live log console, settings, and firmware upload (see [Web interface](#web-interface)); updates are gated by the device password and protected by **bootloader rollback** if a new image doesn't prove healthy
 - **mDNS** — `n2k-can-gw.local`
 - **USB self-heal watchdog** — restarts the chip if USB stops making progress while CAN is active (a backstop; the underlying wedge was fixed by removing the CDC console)
 - Status LED: dim red = no USB host, blue = idle, green = bus OK (bright flash on traffic), orange = error warning/passive, red blinking = bus-off, magenta blinking = identify
@@ -81,21 +81,16 @@ The device reboots into the new image as *pending-verify* and only keeps it if i
 
 Later, change settings at `http://n2k-can-gw.local/setup` (needs the current device password). If the saved network is missing for 5 minutes, the hotspot comes back, protected by the device password as its WiFi password, and goes off again after 5 minutes with no phone on it. Forgotten the device password? Reinstall with "erase" from the web installer and set it up again.
 
-## Status page
+## Web interface
 
-`GET /` returns plain text, reachable over WiFi even if USB has wedged:
+Open `http://n2k-can-gw.local/` on the boat network. Reachable over WiFi even if USB has wedged.
 
-```
-n2k_usb_can gateway
-fw <git> built <date>
-partition ota_0  pending-verify no
-uptime <s>
-wifi up  rssi <dBm>  ip <ip>
-usb mounted yes
-can up  state <n>  tx_err <n>  rx_err <n>
-rx <n>  tx <n>  tx_failed <n>  rx_overflow <n>  bus_err <n>  bus_off <n>
-settings: /setup
-```
+- **Status** — tiles for the CAN bus (state, bitrate, error counters), traffic (rx/tx per second), errors (bus errors per minute, RX overflows, TX failures, bus-off), USB host, WiFi, uptime and memory, refreshed every 2 s. The firmware version is in the header.
+- **Console** — recent log lines, scrolling live, with pause and auto-scroll. Kept in RAM (the last 160 lines); logs never go into a USB endpoint.
+- **Restart** — restarts the gateway (`can0` drops for a few seconds).
+- **Settings** (`/setup`) — WiFi network, device password, and **firmware update**: shows the running version, and uploads a release's `-update.bin`.
+
+For scripts: `GET /api/status` (JSON), `GET /api/log?since=N` (JSON), `POST /update` (firmware, `X-OTA-Key` header).
 
 ## Raspberry Pi / Signal K
 

@@ -6,16 +6,12 @@ What's planned, in rough order. Design detail lives in [spec.md](spec.md); test 
 
 - **Settings on the device, with a setup hotspot.** WiFi SSID/password and the device password (which gates OTA) live in NVS. With nothing saved, an open `N2K-CAN-XXXX` hotspot serves a setup page; if the saved network is missing for 5 minutes, the hotspot returns, protected by the device password. `secrets.h` is optional, for development only.
 - **mDNS**, so `n2k-can-gw.local` resolves.
+- **Web interface** — status tiles, a live log console (RAM ring buffer), restart, and settings with firmware upload from the browser.
 - **CI.** Builds with and without `secrets.h` on every pull request and push to `main`.
 - **Release on tag.** A `v*` tag builds the image, checks the firmware version matches the tag, attaches a merged image (write at `0x0`) and an OTA image to a GitHub release, and deploys the web installer.
 - **Web installer on GitHub Pages.** ESP Web Tools page for the first install: hold the button for download mode, click Install, replug.
 - From this tag on, changes go through branches and pull requests rather than straight to `main`.
 
-## Web interface
-
-- Replace the plain-text stats page with an auto-refreshing status page.
-- **Log** — a RAM ring buffer of recent log lines (`/log`), so diagnostics don't need UART access.
-- **Update** — firmware upload from the browser, on the same rollback-protected OTA path as `POST /update`.
 
 ## Robustness
 

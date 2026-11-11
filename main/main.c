@@ -8,7 +8,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "gs_usb_dev.h"
-#include "net_ota.h"
+#include "log_ring.h"
+#include "net_web.h"
 #include "net_wifi.h"
 #include "ota_health.h"
 #include "status_led.h"
@@ -66,6 +67,7 @@ static void usb_wedge_check(bool can_active)
 
 void app_main(void)
 {
+    log_ring_init();   // first, so the web console has the whole boot
     ESP_ERROR_CHECK(can_bus_init());
     if (status_led_init() != ESP_OK) {
         ESP_LOGW(TAG, "status LED unavailable");
@@ -79,8 +81,8 @@ void app_main(void)
     if (net_wifi_init() != ESP_OK) {
         ESP_LOGW(TAG, "WiFi init failed; running USB-only");
     }
-    if (net_ota_init() != ESP_OK) {
-        ESP_LOGW(TAG, "HTTP/OTA init failed");
+    if (net_web_init() != ESP_OK) {
+        ESP_LOGW(TAG, "web interface init failed");
     }
 
     uint32_t last_count = 0;

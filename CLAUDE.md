@@ -7,7 +7,7 @@ Firmware that turns an **M5Stack AtomS3 Lite (ESP32-S3) + ATOMIC CAN Base** into
 
 ## Architecture constraints
 
-- **Single gs_usb vendor interface** (VID:PID `1d50:606f`). There is deliberately **no CDC-ACM console**: it caused a USB wedge (logs piling into an unread endpoint stalled the stack — see TESTING.md 2026-11-04). Never route logs or anything else into a USB endpoint; logs go to UART0 (not exposed). Diagnostics come from the WiFi stats page.
+- **Single gs_usb vendor interface** (VID:PID `1d50:606f`). There is deliberately **no CDC-ACM console**: it caused a USB wedge (logs piling into an unread endpoint stalled the stack — see TESTING.md 2026-11-04). Never route logs or anything else into a USB endpoint; logs go to UART0 (not exposed). Diagnostics come from the web interface (status tiles + a RAM log console, `log_ring.c`).
 - The **USB self-heal watchdog** in `main.c` (`esp_restart()` if USB stops making progress while CAN is active) is a backstop, not the fix — don't lean on it.
 - **OTA rollback** (`ota_health.c`): an OTA'd image boots pending-verify and only marks itself valid after USB is passing data + CAN healthy for 60 s. Changes that delay USB or CAN bring-up can trip a rollback.
 - The firmware refuses `restart-ms` (it does bus-off recovery itself).
@@ -22,7 +22,10 @@ Firmware that turns an **M5Stack AtomS3 Lite (ESP32-S3) + ATOMIC CAN Base** into
 - `net_wifi.c/.h` — esp_wifi STA + reconnect, mDNS (`n2k-can-gw.local`), and the setup hotspot (`N2K-CAN-XXXX`: open when nothing is saved; WPA2 with the device password when the saved network is missing for 5 min).
 - `net_setup.c/.h` — `GET/POST /setup` settings page; captive-portal redirect while the hotspot is on.
 - `captive_dns.c/.h` — answers every DNS query with the hotspot's IP while it's on.
-- `net_ota.c/.h` — esp_http_server: `GET /` stats, `POST /update` OTA gated by the device password in `X-OTA-Key`.
+- `net_web.c/.h` — starts esp_http_server; `GET /` status page (`web/index.html`, embedded), `GET /api/status`, `GET /api/log`, `POST /api/restart`.
+- `web/index.html` — the status + console page (one self-contained file; the boat may have no internet).
+- `log_ring.c/.h` — hooks `esp_log_set_vprintf`: keeps the last 160 lines in RAM for `/api/log`, still passes them to UART0.
+- `net_ota.c/.h` — `POST /update` OTA gated by the device password in `X-OTA-Key` (curl, and the settings page's upload).
 - `ota_health.c/.h` — pending-verify → mark-valid-or-rollback state machine.
 - `status_led.c/.h` — WS2812 status LED.
 - `secrets.h` (gitignored, optional, dev only) — `WIFI_SSID`, `WIFI_PASS`, `OTA_KEY`, copied from `secrets.example.h`. Defaults for settings not yet in NVS; saved to NVS on first boot, after which NVS wins (editing `secrets.h` later does nothing on that device). Release builds never have it; CI builds both ways.

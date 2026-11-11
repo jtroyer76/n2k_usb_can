@@ -1,7 +1,7 @@
-// HTTP server: GET / (plain-text stats) and POST /update (firmware OTA,
-// gated by the X-OTA-Key header). Starts after WiFi.
+// POST /update: firmware OTA, gated by the device password in the X-OTA-Key header. The new
+// image boots pending-verify (ota_health.c). Used by curl and by the settings page's upload.
 #pragma once
 
-#include "esp_err.h"
+#include "esp_http_server.h"
 
-esp_err_t net_ota_init(void);
+void net_ota_register(httpd_handle_t server);

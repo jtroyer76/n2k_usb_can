@@ -64,6 +64,9 @@ bool can_bus_timing_valid(const can_timing_t *timing);
 esp_err_t can_bus_start(const can_timing_t *timing, const can_mode_t *mode);
 void can_bus_stop(void);
 bool can_bus_running(void);
+// Bit rate (bit/s) and listen-only flag of the running channel; 0 / false when stopped.
+uint32_t can_bus_bitrate(void);
+bool can_bus_listen_only(void);
 
 // Queue a host frame for transmission. The frame's echo is delivered on the
 // echo queue once the controller finishes with it (sent or failed).

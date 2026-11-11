@@ -29,6 +29,7 @@ static QueueHandle_t s_echo_queue;
 static TaskHandle_t s_recover_task;
 static tx_slot_t s_slots[GS_MAX_TX_URBS];
 static can_mode_t s_mode;
+static volatile uint32_t s_bitrate;   // of the running channel; 0 when stopped
 static volatile bool s_rx_overflow;
 static volatile twai_error_state_t s_state = TWAI_ERROR_ACTIVE;
 static can_stats_t s_stats;
@@ -291,6 +292,7 @@ esp_err_t can_bus_start(const can_timing_t *timing, const can_mode_t *mode)
     if (err != ESP_OK) {
         goto fail;
     }
+    s_bitrate = CAN_FCLK_HZ / (timing->brp * (1 + timing->tseg1 + timing->tseg2));
     ESP_LOGI(TAG, "started: brp=%lu tseg1=%lu tseg2=%lu sjw=%lu (%lu bit/s)%s%s%s",
              timing->brp, timing->tseg1, timing->tseg2, timing->sjw,
              CAN_FCLK_HZ / (timing->brp * (1 + timing->tseg1 + timing->tseg2)),
@@ -321,6 +323,16 @@ void can_bus_stop(void)
 bool can_bus_running(void)
 {
     return s_node != NULL;
+}
+
+uint32_t can_bus_bitrate(void)
+{
+    return s_node ? s_bitrate : 0;
+}
+
+bool can_bus_listen_only(void)
+{
+    return s_node && s_mode.listen_only;
 }
 
 static void echo_now(const gs_host_frame_t *frame)

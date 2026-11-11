@@ -65,7 +65,7 @@ candump can0</pre>
   <p>To bring it up at boot, and to connect Signal K, see the README. The LED: dim red = no USB host,
      blue = idle, green = bus OK (flashes on traffic), orange = bus errors, blinking red = bus-off.</p>
   <h2>WiFi setup (optional)</h2>
-  <p>The CAN adapter works over USB without any of this. WiFi adds firmware updates without a cable and a stats page.</p>
+  <p>The CAN adapter works over USB without any of this. WiFi adds a web page with live status and logs, and firmware updates without a cable.</p>
   <ol>
     <li>Power the gateway. With no WiFi saved, it starts its own open WiFi, <b>N2K-CAN-XXXX</b>.</li>
     <li>Join it with your phone. The setup page usually opens by itself; if not, open <code>http://192.168.4.1/setup</code>.</li>
@@ -73,7 +73,7 @@ candump can0</pre>
         Note the <b>device password</b> shown on the page, or set your own: it's needed for updates and to change settings later.</li>
     <li>Save. The gateway restarts and joins the boat's network.</li>
   </ol>
-  <p>Then the stats page is at <code>http://n2k-can-gw.local/</code> and settings at <code>/setup</code>.
+  <p>Then the gateway's page is at <code>http://n2k-can-gw.local/</code>: live status, the log console, and Settings, where you can also upload a release's <code>-update.bin</code>.
      If the boat network is missing for 5 minutes, the gateway starts its own WiFi again, this time protected by the device password.
      Updates over WiFi use the <code>-update.bin</code> file from a release:</p>
   <pre>curl -H "X-OTA-Key: &lt;device password&gt;" --data-binary @n2k_usb_can-&lt;version&gt;-update.bin http://n2k-can-gw.local/update</pre>
