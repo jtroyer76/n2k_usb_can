@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>n2k_usb_can Installer</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10.4.0/dist/web/install-button.js?module"></script>
+<style>
+  :root { --bg: #ffffff; --text: #1a2233; --muted: #5a6478; --card: #f2f5fa; --accent: #1f6fd1; --line: #d5dce8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b1220; --text: #e8edf5; --muted: #8a96ab; --card: #16213a; --accent: #4ea1ff; --line: #34466e; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.5 system-ui, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  h2 { font-size: 19px; margin: 28px 0 8px; }
+  p, li { color: var(--muted); }
+  b { color: var(--text); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
+  #version { font-variant-numeric: tabular-nums; }
+  esp-web-install-button button[slot=activate] {
+    font: inherit; font-weight: 600; padding: 12px 20px; border: 0; border-radius: 8px;
+    background: var(--accent); color: var(--bg); cursor: pointer;
+  }
+  a { color: var(--accent); }
+  code, pre { background: var(--card); border-radius: 4px; }
+  code { padding: 1px 5px; }
+  pre { padding: 10px 12px; overflow-x: auto; border: 1px solid var(--line); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>n2k_usb_can</h1>
+  <p>Firmware that turns an M5Stack AtomS3 Lite on an ATOMIC CAN Base into a USB-to-CAN adapter.
+     Linux sees it as a standard <code>gs_usb</code> (candleLight) device: it shows up as <code>can0</code>
+     with no drivers to install. Built for NMEA 2000 into Signal K. Version <b id="version">…</b>.</p>
+
+  <h2>Before you install: download mode</h2>
+  <p>Once this firmware is running, the AtomS3 no longer shows up as a serial port, so the installer can't reach it
+     on its own. Put it in download mode first; this is also how you'd reinstall later.</p>
+  <ol>
+    <li>Hold the AtomS3's side button and plug it into this computer by USB-C (or, already plugged in, hold the button about 2 seconds until the small green LED inside lights).</li>
+    <li>Release the button. The AtomS3 now shows up as a serial port.</li>
+  </ol>
+
+  <div class="card">
+    <esp-web-install-button manifest="firmware/manifest.json">
+      <button slot="activate">Install on an AtomS3 Lite</button>
+      <span slot="unsupported">This browser can't install firmware. Use Chrome or Edge on a computer.</span>
+      <span slot="not-allowed">Open this page over https to install.</span>
+    </esp-web-install-button>
+    <p>Click Install and choose the AtomS3's serial port (often "USB JTAG/serial debug unit").
+       Erase the device on a first install. To reinstall a gateway you've set up, don't erase: its settings are kept.
+       (Erasing is also how to start over if you've forgotten the device password.)</p>
+    <p>When it finishes, <b>unplug the AtomS3 and plug it back in</b>. It sometimes stays in download mode after
+       installing until it's power-cycled. The installer may then say it can't connect to the device: that's
+       expected, because it's now a CAN adapter, not a serial port.</p>
+  </div>
+
+  <h2>After installing</h2>
+  <p>Plug it into the Linux host (e.g. a Raspberry Pi). <code>lsusb</code> shows <code>1d50:606f</code> and
+     <code>can0</code> appears. For NMEA 2000, bring it up at 250 kbit/s:</p>
+  <pre>sudo ip link set can0 up type can bitrate 250000
+candump can0</pre>
+  <p>To bring it up at boot, and to connect Signal K, see the README. The LED: dim red = no USB host,
+     blue = idle, green = bus OK (flashes on traffic), orange = bus errors, blinking red = bus-off.</p>
+  <h2>WiFi setup (optional)</h2>
+  <p>The CAN adapter works over USB without any of this. WiFi adds firmware updates without a cable and a stats page.</p>
+  <ol>
+    <li>Power the gateway. With no WiFi saved, it starts its own open WiFi, <b>N2K-CAN-XXXX</b>.</li>
+    <li>Join it with your phone. The setup page usually opens by itself; if not, open <code>http://192.168.4.1/setup</code>.</li>
+    <li>Choose the boat's WiFi network (names are case-sensitive) and enter its password.
+        Note the <b>device password</b> shown on the page, or set your own: it's needed for updates and to change settings later.</li>
+    <li>Save. The gateway restarts and joins the boat's network.</li>
+  </ol>
+  <p>Then the stats page is at <code>http://n2k-can-gw.local/</code> and settings at <code>/setup</code>.
+     If the boat network is missing for 5 minutes, the gateway starts its own WiFi again, this time protected by the device password.
+     Updates over WiFi use the <code>-update.bin</code> file from a release:</p>
+  <pre>curl -H "X-OTA-Key: &lt;device password&gt;" --data-binary @n2k_usb_can-&lt;version&gt;-update.bin http://n2k-can-gw.local/update</pre>
+
+  <p><a href="https://github.com/jtroyer76/n2k_usb_can">Source, docs and releases on GitHub</a></p>
+</main>
+<script>
+  fetch("firmware/manifest.json").then(r => r.json()).then(m => {
+    document.getElementById("version").textContent = m.version;
+  }).catch(() => { document.getElementById("version").textContent = "unknown"; });
+</script>
+</body>
+</html>

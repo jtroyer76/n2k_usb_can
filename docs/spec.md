@@ -195,7 +195,7 @@ RX frames, TX frames, RX overflows, TX failures, bus errors, bus-off events, upt
 **CDC console removed (2026-11-03).** v1 originally carried a CDC-ACM console (interfaces 1-2) for logs + `stats`/`reboot`/`bootloader` commands + a 1200-baud-touch reflash (`tools/flash.sh`). It was the **root cause of a USB wedge** under sustained load — firmware logging piled into a USB endpoint nothing was reading, and the stack stalled (see docs/TESTING.md 2026-11-04). Removed entirely: single gs_usb interface, logs go to UART0, never a USB endpoint. `tools/flash.sh` is gone; reflash is button-download (first time) then OTA. A **USB self-heal watchdog** was added as a backstop (`esp_restart` if USB stops making progress while CAN is active).
 
 **v2 — WiFi + OTA (built 2026-11-03):**
-- WiFi STA, joins the boat network on boot (creds in gitignored `main/secrets.h`). `net_wifi.c`.
+- WiFi STA, joins the boat network on boot. `net_wifi.c`. (Credentials were first compiled in from a gitignored `main/secrets.h`; since v0.1.0 they live in NVS, set from a setup hotspot — `settings.c`, `net_setup.c`; `secrets.h` remains as optional dev defaults.)
 - `esp_http_server` (`net_ota.c`): `GET /` plain-text stats page, `POST /update` firmware OTA gated by the `X-OTA-Key` header.
 - Rollback (`ota_health.c`): custom dual-OTA partition table (`partitions.csv`) + `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`; a pushed image boots pending-verify and only marks itself valid after USB is passing data + CAN is healthy for 60 s, else the bootloader reverts to the previous image.
 - Validated: after the fix + WiFi/OTA, ran 16 h clean under full load on the bus (docs/TESTING.md 2026-11-04).

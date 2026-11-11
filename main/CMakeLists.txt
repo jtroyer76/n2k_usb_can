@@ -6,6 +6,9 @@ idf_component_register(
         "status_led.c"
         "net_wifi.c"
         "net_ota.c"
+        "net_setup.c"
+        "captive_dns.c"
+        "settings.c"
         "ota_health.c"
     INCLUDE_DIRS "."
     REQUIRES

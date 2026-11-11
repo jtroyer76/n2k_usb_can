@@ -1,4 +1,7 @@
-// Copy to secrets.h (gitignored) and fill in. secrets.h is REQUIRED to build.
+// Optional, for development: copy to secrets.h (gitignored) and fill in. These are defaults
+// for settings not yet saved on the device (NVS); they are saved on first boot, and after
+// that the device's own settings win. Release builds have no secrets.h: WiFi is set up
+// from the setup hotspot instead.
 //
 //   cp main/secrets.example.h main/secrets.h   # then edit
 //

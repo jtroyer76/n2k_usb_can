@@ -18,11 +18,14 @@ Firmware that turns an **M5Stack AtomS3 Lite (ESP32-S3) + ATOMIC CAN Base** into
 - `gs_usb_dev.c/.h` — TinyUSB gs_usb device: descriptors, control requests, bulk IN/OUT, USB-progress timestamp for the watchdog.
 - `gs_usb_proto.h` — gs_usb wire protocol (matches the Linux `gs_usb.c` driver).
 - `can_bus.c/.h` — TWAI (esp_twai node API): RX/TX, echo slots, error/state callbacks, bus-off recovery. No acceptance filter — every frame is passed.
-- `net_wifi.c/.h` — esp_wifi STA + reconnect.
-- `net_ota.c/.h` — esp_http_server: `GET /` stats, `POST /update` OTA gated by `X-OTA-Key`.
+- `settings.c/.h` — NVS settings: WiFi SSID/password + device password (made up on first boot). Constant-time password check.
+- `net_wifi.c/.h` — esp_wifi STA + reconnect, mDNS (`n2k-can-gw.local`), and the setup hotspot (`N2K-CAN-XXXX`: open when nothing is saved; WPA2 with the device password when the saved network is missing for 5 min).
+- `net_setup.c/.h` — `GET/POST /setup` settings page; captive-portal redirect while the hotspot is on.
+- `captive_dns.c/.h` — answers every DNS query with the hotspot's IP while it's on.
+- `net_ota.c/.h` — esp_http_server: `GET /` stats, `POST /update` OTA gated by the device password in `X-OTA-Key`.
 - `ota_health.c/.h` — pending-verify → mark-valid-or-rollback state machine.
 - `status_led.c/.h` — WS2812 status LED.
-- `secrets.h` (gitignored, required to build) — `WIFI_SSID`, `WIFI_PASS`, `OTA_KEY`. Copy from `secrets.example.h`.
+- `secrets.h` (gitignored, optional, dev only) — `WIFI_SSID`, `WIFI_PASS`, `OTA_KEY`, copied from `secrets.example.h`. Defaults for settings not yet in NVS; saved to NVS on first boot, after which NVS wins (editing `secrets.h` later does nothing on that device). Release builds never have it; CI builds both ways.
 
 ## Build / flash / update
 
@@ -35,9 +38,15 @@ idf.py build
 
 **Updates: OTA over WiFi:**
 ```
-curl -H "X-OTA-Key: <key from secrets.h>" --data-binary @build/n2k_usb_can.bin http://<gateway-ip>/update
+curl -H "X-OTA-Key: <device password>" --data-binary @build/n2k_usb_can.bin http://n2k-can-gw.local/update
 ```
-DHCP hostname is `n2k-can-gw`; there's no mDNS responder yet, so `n2k-can-gw.local` does not resolve — find the IP from the router or an ARP scan. An OTA restarts the gateway, so `can0` drops and returns; Signal K then needs a restart to re-attach.
+If `.local` doesn't resolve, use the IP (DHCP hostname `n2k-can-gw`). An OTA restarts the gateway, so `can0` drops and returns; Signal K then needs a restart to re-attach.
+
+## Releases
+
+Tag `vX.Y.Z` on `main` → `.github/workflows/release.yml` builds the USB-only image (fails if the firmware version, from `git describe`, isn't exactly the tag), creates the GitHub release with `n2k_usb_can-<ver>-full.bin` (merged, write at 0x0) and `-update.bin` (OTA), and deploys `site/` (ESP Web Tools installer) to GitHub Pages.
+
+**Upgrading a gateway that predates on-device settings** (its WiFi was compiled in, nothing in NVS): OTA a local build *with* `secrets.h` first, which saves those settings to NVS. OTA'ing a release image straight onto it would boot with nothing saved → open setup hotspot, off the boat network.
 
 ## Host (Raspberry Pi / Signal K)
 

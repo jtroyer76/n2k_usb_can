@@ -1,0 +1,85 @@
+# On a version tag (v*): build the firmware, publish a GitHub release with it, and put the
+# web installer (site/) with that firmware on GitHub Pages.
+# The firmware has no credentials in it: WiFi and the device password are set up on the
+# device (setup hotspot). main/secrets.h is gitignored, so it is never in this build.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0          # git describe gives the firmware its version
+
+      - name: No credentials in the build
+        run: test ! -e main/secrets.h
+
+      - name: Build
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v6.1
+          target: esp32s3
+          command: git config --global --add safe.directory '*' && idf.py build
+
+      - name: Version matches the tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VER=$(python3 -c "import json;print(json.load(open('build/project_description.json'))['project_version'])")
+          echo "firmware version: $VER"
+          test "$VER" = "${GITHUB_REF_NAME}"
+
+      - name: Install esptool
+        run: pip install esptool==5.6.0
+
+      # Flash layout comes from the build (build/flash_args): bootloader 0x0, partition table 0x8000,
+      # OTA data 0xf000, app 0x20000. AtomS3 Lite: 8 MB, DIO, 80 MHz.
+      - name: Package
+        run: |
+          VER=$(git describe --tags --always)
+          mkdir -p dist site/firmware
+          cp build/bootloader/bootloader.bin build/partition_table/partition-table.bin \
+             build/ota_data_initial.bin build/n2k_usb_can.bin site/firmware/
+          # One file for esptool: write it at 0x0
+          (cd build && python -m esptool --chip esp32s3 merge-bin \
+             -o ../dist/n2k_usb_can-$VER-full.bin @flash_args)
+          # The app alone: for updates over WiFi (POST /update with the device password)
+          cp build/n2k_usb_can.bin dist/n2k_usb_can-$VER-update.bin
+          sed "s/@VERSION@/$VER/" site/manifest.template.json > site/firmware/manifest.json
+          rm site/manifest.template.json
+          echo "VER=$VER" >> $GITHUB_ENV
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$VER" dist/* --title "n2k_usb_can $VER" --generate-notes
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  pages:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5

@@ -23,12 +23,13 @@ CAN pins: TX = GPIO5, RX = GPIO6. Both parts are rated 0–40 °C — indoor use
 - Error frames for warning / passive / bus-off / restart, RX overflow flag, `GET_STATE` error counters, optional bus-error reporting
 - Automatic bus-off recovery (the Linux gs_usb driver cannot restart a channel itself)
 - Listen-only, loopback, one-shot, triple-sample modes
-- **WiFi STA** — joins the configured network on boot (credentials in gitignored `main/secrets.h`)
-- **HTTP stats + OTA** — `GET /` plain-text status page; `POST /update` firmware upload (gated by an `X-OTA-Key` header), with **bootloader rollback** if a pushed image doesn't prove healthy
+- **WiFi setup on the device** — with no network saved it starts an open hotspot (`N2K-CAN-XXXX`) with a setup page; settings live in NVS, nothing is compiled in. If the saved network is missing for 5 minutes the hotspot comes back, protected by the device password
+- **HTTP stats + OTA** — `GET /` plain-text status page, `/setup` settings; `POST /update` firmware upload (gated by the device password in an `X-OTA-Key` header), with **bootloader rollback** if a pushed image doesn't prove healthy
+- **mDNS** — `n2k-can-gw.local`
 - **USB self-heal watchdog** — restarts the chip if USB stops making progress while CAN is active (a backstop; the underlying wedge was fixed by removing the CDC console)
 - Status LED: dim red = no USB host, blue = idle, green = bus OK (bright flash on traffic), orange = error warning/passive, red blinking = bus-off, magenta blinking = identify
 
-Not implemented: WiFi YD RAW over TCP, CAN FD, hardware timestamps, mDNS, Windows driverless install.
+Not implemented: WiFi YD RAW over TCP, CAN FD, hardware timestamps, Windows driverless install.
 
 ## Build
 
@@ -39,9 +40,17 @@ idf.py set-target esp32s3
 idf.py build
 ```
 
-WiFi needs credentials: copy `main/secrets.example.h` to `main/secrets.h` (gitignored) and fill in `WIFI_SSID`, `WIFI_PASS`, and an `OTA_KEY`.
+WiFi is set up on the device (see [WiFi setup](#wifi-setup)), so a plain build needs nothing else. For development you can pre-fill the settings: copy `main/secrets.example.h` to `main/secrets.h` (gitignored) and fill in `WIFI_SSID`, `WIFI_PASS` and `OTA_KEY` (the device password). They're used for any setting not saved on the device yet, and saved on first boot — after that, the device's saved settings win.
 
-## Flash & update
+## Install a release (browser, no toolchain)
+
+**[Web installer](https://jtroyer76.github.io/n2k_usb_can/)** — Chrome or Edge on a computer. Hold the AtomS3 side button ~2 s first (download mode), then click Install. Unplug and replug when it's done. Each [GitHub release](https://github.com/jtroyer76/n2k_usb_can/releases) also has `n2k_usb_can-<version>-full.bin` (write at `0x0` on a fresh board) and `n2k_usb_can-<version>-update.bin` (for updates over WiFi):
+
+```
+esptool --chip esp32s3 -p <PORT> write-flash 0x0 n2k_usb_can-<version>-full.bin
+```
+
+## Flash & update (from source)
 
 **First flash (USB, one time):**
 
@@ -53,13 +62,24 @@ WiFi needs credentials: copy `main/secrets.example.h` to `main/secrets.h` (gitig
    ```
    then unplug/replug.
 
-**Every update after that: OTA over WiFi, no cable.** Find the gateway's IP (its DHCP hostname is `n2k-can-gw`; there is no mDNS responder, so `n2k-can-gw.local` does not resolve — use the router's lease list or an ARP scan), then:
+**Every update after that: OTA over WiFi, no cable** (once WiFi is set up):
 
 ```
-curl -H "X-OTA-Key: <your key>" --data-binary @build/n2k_usb_can.bin http://<gateway-ip>/update
+curl -H "X-OTA-Key: <device password>" --data-binary @build/n2k_usb_can.bin http://n2k-can-gw.local/update
 ```
+
+If `.local` names don't resolve on your machine, use the gateway's IP from the router's lease list (DHCP hostname `n2k-can-gw`).
 
 The device reboots into the new image as *pending-verify* and only keeps it if it proves healthy (USB passing data + CAN up) within a minute — otherwise the bootloader rolls back to the previous image.
+
+## WiFi setup
+
+1. Power the gateway. With no WiFi saved, it starts its own open WiFi, **N2K-CAN-XXXX**.
+2. Join it with a phone. The setup page usually opens by itself; if not, open `http://192.168.4.1/setup`.
+3. Choose the boat's network and enter its password. Note the **device password** shown on the page, or set your own (8–63 characters): it gates firmware updates and changing settings later. It's shown only during this first setup.
+4. Save. The gateway restarts and joins the network.
+
+Later, change settings at `http://n2k-can-gw.local/setup` (needs the current device password). If the saved network is missing for 5 minutes, the hotspot comes back, protected by the device password as its WiFi password, and goes off again after 5 minutes with no phone on it. Forgotten the device password? Reinstall with "erase" from the web installer and set it up again.
 
 ## Status page
 
@@ -74,6 +94,7 @@ wifi up  rssi <dBm>  ip <ip>
 usb mounted yes
 can up  state <n>  tx_err <n>  rx_err <n>
 rx <n>  tx <n>  tx_failed <n>  rx_overflow <n>  bus_err <n>  bus_off <n>
+settings: /setup
 ```
 
 ## Raspberry Pi / Signal K

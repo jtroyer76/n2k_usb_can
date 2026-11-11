@@ -13,8 +13,9 @@
 #include "freertos/task.h"
 #include "gs_usb_dev.h"
 #include "net_wifi.h"
+#include "net_setup.h"
 #include "ota_health.h"
-#include "secrets.h"
+#include "settings.h"
 
 static const char *TAG = "net_ota";
 
@@ -23,6 +24,13 @@ static char s_ota_buf[2048];   // single handler at a time (default httpd worker
 
 static esp_err_t stats_get(httpd_req_t *req)
 {
+    wifi_setup_t ws;
+    net_wifi_setup_info(&ws);
+    if (ws.on) {   // on the setup hotspot: the phone wants the setup page
+        httpd_resp_set_status(req, "302 Found");
+        httpd_resp_set_hdr(req, "Location", "/setup");
+        return httpd_resp_send(req, NULL, 0);
+    }
     can_stats_t s;
     can_bus_get_stats(&s);
     gs_device_state_t cs;
@@ -41,7 +49,8 @@ static esp_err_t stats_get(httpd_req_t *req)
         "wifi %s  rssi %d dBm  ip %s\n"
         "usb mounted %s\n"
         "can %s  state %lu  tx_err %lu  rx_err %lu\n"
-        "rx %lu  tx %lu  tx_failed %lu  rx_overflow %lu  bus_err %lu  bus_off %lu\n",
+        "rx %lu  tx %lu  tx_failed %lu  rx_overflow %lu  bus_err %lu  bus_off %lu\n"
+        "settings: /setup\n",
         app->version, app->date, app->time,
         run->label, ota_health_pending() ? "yes" : "no",
         (unsigned long long)(esp_timer_get_time() / 1000000),
@@ -59,17 +68,18 @@ static esp_err_t stats_get(httpd_req_t *req)
 
 static bool authed(httpd_req_t *req)
 {
-    char key[64];
+    // The device password (settings.h), sent as X-OTA-Key.
+    char key[SETTINGS_PW_LEN + 1];
     if (httpd_req_get_hdr_value_str(req, "X-OTA-Key", key, sizeof(key)) != ESP_OK) {
         return false;
     }
-    return strcmp(key, OTA_KEY) == 0;
+    return settings_password_ok(key);
 }
 
 static esp_err_t update_post(httpd_req_t *req)
 {
     if (!authed(req)) {
-        httpd_resp_send_err(req, HTTPD_401_UNAUTHORIZED, "bad or missing X-OTA-Key");
+        httpd_resp_send_err(req, HTTPD_401_UNAUTHORIZED, "bad or missing X-OTA-Key (the device password)");
         return ESP_FAIL;
     }
     const esp_partition_t *next = esp_ota_get_next_update_partition(NULL);
@@ -139,6 +149,7 @@ esp_err_t net_ota_init(void)
     httpd_uri_t upd = { .uri = "/update", .method = HTTP_POST, .handler = update_post };
     httpd_register_uri_handler(s_server, &stats);
     httpd_register_uri_handler(s_server, &upd);
-    ESP_LOGI(TAG, "http up: GET / (stats), POST /update (OTA)");
+    net_setup_register(s_server);
+    ESP_LOGI(TAG, "http up: GET / (stats), /setup (settings), POST /update (OTA)");
     return ESP_OK;
 }

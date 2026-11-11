@@ -2,20 +2,20 @@
 
 What's planned, in rough order. Design detail lives in [spec.md](spec.md); test history in [TESTING.md](TESTING.md). Nothing here is urgent — the adapter is in daily use on a live NMEA 2000 bus as it stands.
 
-## Toward the first release (v0.1.0)
+## v0.1.0 — first release
 
-A public release can't ship today: WiFi credentials and the OTA key are compiled in from a gitignored `main/secrets.h`, so a generic binary would have no network and no update path. These steps, in order, fix that and publish the first release.
+- **Settings on the device, with a setup hotspot.** WiFi SSID/password and the device password (which gates OTA) live in NVS. With nothing saved, an open `N2K-CAN-XXXX` hotspot serves a setup page; if the saved network is missing for 5 minutes, the hotspot returns, protected by the device password. `secrets.h` is optional, for development only.
+- **mDNS**, so `n2k-can-gw.local` resolves.
+- **CI.** Builds with and without `secrets.h` on every pull request and push to `main`.
+- **Release on tag.** A `v*` tag builds the image, checks the firmware version matches the tag, attaches a merged image (write at `0x0`) and an OTA image to a GitHub release, and deploys the web installer.
+- **Web installer on GitHub Pages.** ESP Web Tools page for the first install: hold the button for download mode, click Install, replug.
+- From this tag on, changes go through branches and pull requests rather than straight to `main`.
 
-1. **Settings stored on the device, with a setup hotspot.** Move WiFi SSID/password and the OTA key out of `secrets.h` into NVS. With no WiFi configured (or after a bench reset), the gateway starts its own access point and serves a setup page to enter them. `secrets.h` goes away.
-2. **On-device web interface.** Replace the plain-text stats page with:
-   - **Status** — CAN state, counters, USB state, WiFi, firmware version, auto-refreshing.
-   - **Log** — a RAM ring buffer of recent log lines (`/log`), so diagnostics don't need UART access.
-   - **Settings** — the step 1 fields, editable after setup.
-   - **Update** — firmware upload from the browser (same rollback-protected OTA path as `POST /update`).
-3. **mDNS responder**, so `n2k-can-gw.local` resolves without hunting for the DHCP address.
-4. **CI.** Build on every pull request; on a version tag, build and attach release assets to a GitHub release: the app image (for OTA) and a merged image at offset 0 (for first flash).
-5. **Tag v0.1.0.** From this point, changes go through branches and pull requests rather than straight to `main`.
-6. **Web flasher on GitHub Pages.** ESP Web Tools page + manifest (`chipFamily: "ESP32-S3"`, merged image at offset 0), linked from the README. First flash: hold the button for ROM download mode, the board enumerates as USB-Serial/JTAG, and the browser flashes it — no ESP-IDF install needed.
+## Web interface
+
+- Replace the plain-text stats page with an auto-refreshing status page.
+- **Log** — a RAM ring buffer of recent log lines (`/log`), so diagnostics don't need UART access.
+- **Update** — firmware upload from the browser, on the same rollback-protected OTA path as `POST /update`.
 
 ## Robustness
 
