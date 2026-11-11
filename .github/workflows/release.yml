@@ -34,7 +34,7 @@ jobs:
         with:
           esp_idf_version: v6.1
           target: esp32s3
-          command: git config --global --add safe.directory '*' && idf.py build
+          command: idf.py build
 
       - name: Version matches the tag
         if: startsWith(github.ref, 'refs/tags/')

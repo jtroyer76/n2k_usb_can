@@ -31,7 +31,7 @@ jobs:
         with:
           esp_idf_version: v6.1
           target: esp32s3
-          command: git config --global --add safe.directory '*' && idf.py -B build-release build
+          command: idf.py -B build-release build
 
       - name: Build with secrets.h (development configuration)
         uses: espressif/esp-idf-ci-action@v1
@@ -39,7 +39,6 @@ jobs:
           esp_idf_version: v6.1
           target: esp32s3
           command: >-
-            git config --global --add safe.directory '*' &&
             cp main/secrets.example.h main/secrets.h &&
             idf.py -B build-dev build &&
             rm main/secrets.h
