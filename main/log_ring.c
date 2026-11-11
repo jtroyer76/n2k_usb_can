@@ -70,14 +70,30 @@ static void push(char *clean)
     portEXIT_CRITICAL(&s_mux);
 }
 
+// Some code (the WiFi driver) writes a line in pieces: "I (123) wifi:" then "text\n". Pieces
+// collect here until one ends the line.
+static char s_pending[LOG_RING_LEN + 32];
+
 static int hook(const char *fmt, va_list args)
 {
-    char buf[LOG_RING_LEN + 32];
+    char buf[sizeof(s_pending)];
     va_list copy;
     va_copy(copy, args);
-    vsnprintf(buf, sizeof(buf), fmt, copy);
+    int len = vsnprintf(buf, sizeof(buf), fmt, copy);
     va_end(copy);
-    push(buf);
+    // A piece too long for buf lost its newline: treat it as the end of the line.
+    bool line_ends = len <= 0 || len >= (int)sizeof(buf) - 1 || buf[len - 1] == '\n';
+
+    portENTER_CRITICAL(&s_mux);
+    strlcat(s_pending, buf, sizeof(s_pending));
+    if (line_ends) {
+        memcpy(buf, s_pending, sizeof(buf));
+        s_pending[0] = '\0';
+    }
+    portEXIT_CRITICAL(&s_mux);
+    if (line_ends) {
+        push(buf);
+    }
     return s_prev ? s_prev(fmt, args) : 0;   // still to UART0
 }
 
