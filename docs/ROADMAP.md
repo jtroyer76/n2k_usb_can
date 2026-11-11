@@ -12,6 +12,22 @@ What's planned, in rough order. Design detail lives in [spec.md](spec.md); test 
 - **Web installer on GitHub Pages.** ESP Web Tools page for the first install: hold the button for download mode, click Install, replug.
 - From this tag on, changes go through branches and pull requests rather than straight to `main`.
 
+**Then:** run it on the boat for a week or two (watch `/api/status` and the console for restarts, falling memory, bus errors, WiFi drops), and test the paths not yet exercised — the locked fallback hotspot (boat WiFi off > 5 min), the web installer on a fresh AtomS3, browser upload, reinstall-with-erase. Clean → tag **1.0.0**.
+
+## v0.1.1 — update from GitHub, simpler passwords
+
+- **Online update.** Settings gets *Check for updates*: the gateway asks the GitHub API for this repo's newest release, shows "Running vX · vY is available" with the release notes, and *Install* downloads that release's `-update.bin` over HTTPS (`esp_https_ota`, ESP-IDF's built-in CA bundle) and installs it. The repo is fixed in the firmware, so it can only install official releases; the existing rollback still applies. Needs internet on the boat network at the time; the file upload stays as the fallback (no internet, test builds, or a future CA change the old firmware's bundle doesn't know). While the running firmware is a pre-release, the check includes pre-releases (GitHub's "latest" skips them).
+- **Passwords by risk.** Being on the boat network is the trust boundary (as phone pairing is for Victron):
+
+  | Action | Device password |
+  |---|---|
+  | Status, console | no |
+  | Restart | no |
+  | Install an update from GitHub | no — official releases only, rollback-protected |
+  | Upload a firmware file | yes — could be anything |
+  | Change WiFi or the device password | yes — could lock you out |
+
+  `POST /update` (file upload / curl) keeps the `X-OTA-Key` check.
 
 ## Robustness
 

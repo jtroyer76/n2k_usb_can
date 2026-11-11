@@ -200,4 +200,19 @@ RX frames, TX frames, RX overflows, TX failures, bus errors, bus-off events, upt
 - Rollback (`ota_health.c`): custom dual-OTA partition table (`partitions.csv`) + `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`; a pushed image boots pending-verify and only marks itself valid after USB is passing data + CAN is healthy for 60 s, else the bootloader reverts to the previous image.
 - Validated: after the fix + WiFi/OTA, ran 16 h clean under full load on the bus (docs/TESTING.md 2026-11-04).
 
+**v0.1.0 — first release (built 2026-11-10):**
+- Settings in NVS (`settings.c`): WiFi SSID/password + device password (made up on first boot, 8–63 chars). `secrets.h` became optional dev defaults, saved to NVS on first boot.
+- Setup hotspot (`net_wifi.c`, `net_setup.c`, `captive_dns.c`): open `N2K-CAN-XXXX` when nothing is saved; WPA2 with the device password when the saved network has been missing 5 min; off after 5 min with no phone. Captive-portal DNS + redirects. Changing settings needs the current device password once a network is saved.
+- mDNS `n2k-can-gw.local` (espressif/mdns).
+- Web interface (`net_web.c`, `web/index.html`): status tiles from `/api/status` every 2 s; console from `/api/log` — a RAM ring of the last 160 ESP_LOG lines (`log_ring.c`, `esp_log_set_vprintf` hook; still to UART0, never USB); restart; settings page with the running version and firmware upload (`POST /update`, device password in `X-OTA-Key`).
+- CI (both configurations), release workflow (version must equal the tag; `-full.bin` + `-update.bin`; 0.x = pre-release), ESP Web Tools installer on GitHub Pages.
+- Tested on the boat gateway: OTA from compiled-in-WiFi firmware → booted with nothing saved → open hotspot → set up from a phone → rejoined; then OTA of the web interface with settings kept.
+
+## 12. Planned: update from GitHub (v0.1.1)
+
+- `GET /api/update/check`: the gateway calls `https://api.github.com/repos/<owner>/n2k_usb_can/releases` (repo fixed at build time), picks the newest release — including pre-releases while the running version is one — and returns its tag, notes and the `-update.bin` asset URL; the page shows "Running vX · vY is available".
+- `POST /api/update/install`: `esp_https_ota` from that asset URL (GitHub redirects to its CDN; `esp_http_client` follows), verified with ESP-IDF's certificate bundle (`esp_crt_bundle_attach`). The image boots pending-verify; `ota_health.c` rollback applies as for any OTA. Progress shown on the page.
+- No device password for this: the source is fixed to this repo's releases, so the worst a LAN user can do is update to the official latest release. `POST /update` (arbitrary file) and settings changes keep the password.
+- Costs: ~40 KB heap during TLS (≈200 KB free), ~60 KB flash for the CA bundle. Certificate dates aren't checked (no clock needed). Needs internet on the boat network; the file upload remains the fallback, including for an old firmware whose CA bundle no longer covers GitHub.
+
 **Still future:** see [ROADMAP.md](ROADMAP.md).
