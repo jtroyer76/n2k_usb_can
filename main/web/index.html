@@ -61,9 +61,11 @@ async function status(){
   const dt=prev?(s.uptime_ms-lastUp)/1000:0;lastUp=s.uptime_ms;
   $('ver').textContent=s.version+' · '+s.partition+(s.pending_verify?' · pending verify':'');
   const c=s.can,o=prev&&dt>0?prev.can:null;
+  // Plain words up front; the CAN term (error-active etc.) stays in the small print.
+  const NAMES={'error-active':'OK','error-warning':'Warning','error-passive':'Passive','bus-off':'Bus off'};
   if(!c.running)set('t-can','not open','warn');
-  else set('t-can',c.state,c.state==='error-active'?'ok':c.state==='bus-off'?'bad':'warn');
-  $('t-can2').textContent=c.running?(c.bitrate/1000)+' kbit/s'+(c.listen_only?' · listen-only':'')+' · TEC '+c.tec+', REC '+c.rec
+  else set('t-can',NAMES[c.state]||c.state,c.state==='error-active'?'ok':c.state==='bus-off'?'bad':'warn');
+  $('t-can2').textContent=c.running?(c.bitrate/1000)+' kbit/s · '+c.state+(c.listen_only?' · listen-only':'')+' · TEC '+c.tec+', REC '+c.rec
    :'opens when the host brings can0 up';
   const rx=rate(c,o,'rx',dt),tx=rate(c,o,'tx',dt),be=rate(c,o,'bus_errors',dt);
   set('t-rx',rx===null?'…':Math.round(rx)+' rx/s','');
