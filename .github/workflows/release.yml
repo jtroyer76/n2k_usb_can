@@ -68,7 +68,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$VER" dist/* --title "n2k_usb_can $VER" --generate-notes
+          # 0.x and -rc/-beta tags are pre-releases until 1.0.0
+          PRE=""
+          case "$VER" in v0.*|*-*) PRE="--prerelease" ;; esac
+          gh release create "$VER" dist/* --title "n2k_usb_can $VER" --generate-notes $PRE
 
       - uses: actions/upload-pages-artifact@v5
         with:
