@@ -32,7 +32,7 @@ button.danger{border-color:var(--bad);color:var(--bad)}
 <main>
 <div class="tiles">
 <div class="tile"><h2>CAN bus</h2><div class="v" id="t-can">&ndash;</div><div class="s" id="t-can2"></div></div>
-<div class="tile"><h2>Traffic</h2><div class="v" id="t-rx">&ndash;</div><div class="s" id="t-rx2"></div></div>
+<div class="tile" title="In: frames received from the bus. Out: frames the host sends onto the bus."><h2>Traffic</h2><div class="v" id="t-rx">&ndash;</div><div class="s" id="t-rx2"></div></div>
 <div class="tile"><h2>Errors</h2><div class="v" id="t-err">&ndash;</div><div class="s" id="t-err2"></div></div>
 <div class="tile"><h2>USB host</h2><div class="v" id="t-usb">&ndash;</div><div class="s" id="t-usb2"></div></div>
 <div class="tile"><h2>WiFi</h2><div class="v" id="t-wifi">&ndash;</div><div class="s" id="t-wifi2"></div></div>
@@ -68,8 +68,9 @@ async function status(){
   $('t-can2').textContent=c.running?(c.bitrate/1000)+' kbit/s · '+c.state+(c.listen_only?' · listen-only':'')+' · TEC '+c.tec+', REC '+c.rec
    :'opens when the host brings can0 up';
   const rx=rate(c,o,'rx',dt),tx=rate(c,o,'tx',dt),be=rate(c,o,'bus_errors',dt);
-  set('t-rx',rx===null?'…':Math.round(rx)+' rx/s','');
-  $('t-rx2').textContent=(tx===null?'':Math.round(tx)+' tx/s · ')+c.rx.toLocaleString()+' rx, '+c.tx.toLocaleString()+' tx total';
+  // In = received from the bus (every device); out = sent onto the bus by the host (Signal K).
+  set('t-rx',rx===null?'…':Math.round(rx)+' in · '+Math.round(tx)+' out','');
+  $('t-rx2').textContent='frames/s · total '+c.rx.toLocaleString()+' in, '+c.tx.toLocaleString()+' out';
   set('t-err',be===null?c.bus_errors.toLocaleString()+' bus':(be*60).toFixed(be*60<10?1:0)+' /min',
       c.bus_off||c.rx_overflow?'bad':be!==null&&be*60>30?'warn':'ok');
   $('t-err2').textContent=c.bus_errors.toLocaleString()+' bus errors · '+c.rx_overflow+' rx overflow · '+c.tx_failed+' tx failed · '+c.bus_off+' bus-off';
